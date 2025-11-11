@@ -1,0 +1,28 @@
+# Django Core
+django
+djangorestframework
+
+# Authentication
+djangorestframework-simplejwt
+
+# CORS
+django-cors-headers
+
+# Filtering
+django-filter
+
+# Database
+psycopg2-binary
+
+# Production Server
+gunicorn
+
+# API Documentation
+drf-spectacular
+
+# Environment Variables
+python-dotenv
+
+# Static Files
+whitenoise
+
