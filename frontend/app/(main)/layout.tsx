@@ -2,7 +2,6 @@
 
 import { Sidebar } from "@/components/layout/sidebar"
 import { Navbar } from "@/components/layout/navbar"
-import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -29,7 +28,7 @@ export default function MainLayout({
   }
 
   return (
-    <ThemeProvider>
+    <>
       <div className="flex h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex flex-col ml-64">
@@ -40,7 +39,7 @@ export default function MainLayout({
         </div>
       </div>
       <Toaster />
-    </ThemeProvider>
+    </>
   )
 }
 

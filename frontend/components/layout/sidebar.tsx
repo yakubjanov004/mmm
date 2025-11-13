@@ -10,7 +10,6 @@ import {
   GraduationCap,
   Award,
   FileCode,
-  FolderOpen,
   Settings,
   BarChart3,
   Users,
@@ -34,7 +33,6 @@ const hodNavItems = [
   { href: "/research-works", label: "Ilmiy ishlar", icon: GraduationCap },
   { href: "/certificates", label: "Sertifikatlar", icon: Award },
   { href: "/software-certificates", label: "Dasturiy guvohnomalar", icon: FileCode },
-  { href: "/files", label: "Fayllar", icon: FolderOpen },
   { href: "/statistics", label: "Statistika", icon: BarChart3 },
   { href: "/settings", label: "Sozlamalar", icon: Settings },
 ]
@@ -46,7 +44,6 @@ const teacherNavItems = [
   { href: "/research-works", label: "Ilmiy ishlar", icon: GraduationCap },
   { href: "/certificates", label: "Sertifikatlar", icon: Award },
   { href: "/software-certificates", label: "Dasturiy guvohnomalar", icon: FileCode },
-  { href: "/files", label: "Fayllar", icon: FolderOpen },
   { href: "/settings", label: "Sozlamalar", icon: Settings },
 ]
 

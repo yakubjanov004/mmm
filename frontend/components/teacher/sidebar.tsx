@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { BookOpen, Files, BarChart3, Settings, LogOut } from "lucide-react"
+import { BookOpen, Files, Upload, BarChart3, Settings, LogOut } from "lucide-react"
 
 const navItems = [
   { href: "/teacher/dashboard", label: "Dashboard", icon: BookOpen },
-  { href: "/teacher/files", label: "My Files", icon: Files },
-  { href: "/teacher/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/teacher/settings", label: "Settings", icon: Settings },
+  { href: "/teacher/files", label: "Mening Fayllarim", icon: Files },
+  { href: "/teacher/upload", label: "Fayl Yuklash", icon: Upload },
+  { href: "/teacher/analytics", label: "Tahlil", icon: BarChart3 },
+  { href: "/teacher/settings", label: "Sozlamalar", icon: Settings },
 ]
 
 export function Sidebar() {

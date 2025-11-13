@@ -10,6 +10,54 @@ from accounts.serializers import DepartmentSerializer, ProfileShortSerializer
 from accounts.utils import get_user_profile
 from works.models import Certificate, MethodicalWork, ResearchWork, SoftwareCertificate
 
+
+def format_academic_year(year: int) -> str:
+    """Convert year to academic year format (e.g., 2024 -> '2024-2025')."""
+    return f"{year}-{year + 1}"
+
+
+def parse_academic_year(year_str: str | int) -> str:
+    """Parse academic year format and return as 'YYYY-YYYY' string."""
+    if isinstance(year_str, int):
+        # If it's an integer, convert to academic year format
+        return format_academic_year(year_str)
+    if isinstance(year_str, str):
+        # If format is "2024-2025", validate and return as is
+        if "-" in year_str:
+            parts = year_str.split("-")
+            if len(parts) == 2:
+                try:
+                    first_year = int(parts[0])
+                    second_year = int(parts[1])
+                    if second_year == first_year + 1:
+                        return year_str
+                except ValueError:
+                    pass
+        # If format is just "2024", convert to "2024-2025"
+        try:
+            year_int = int(year_str)
+            return format_academic_year(year_int)
+        except ValueError:
+            pass
+    raise ValueError(f"Invalid year format: {year_str}")
+
+
+class AcademicYearField(serializers.CharField):
+    """Field that stores and displays year as '2024-2025' string format."""
+    
+    def to_representation(self, value):
+        """Return stored year string as is (already in '2024-2025' format)."""
+        if value is None:
+            return None
+        # If somehow stored as integer, convert it
+        if isinstance(value, int):
+            return format_academic_year(value)
+        return str(value)
+    
+    def to_internal_value(self, data):
+        """Convert input ('2024-2025' or 2024) to stored format ('2024-2025')."""
+        return parse_academic_year(data)
+
 WORK_WRITE_BASE_FIELDS = (
     "id",
     "title",
@@ -58,6 +106,7 @@ class WorkAuthorsField(serializers.PrimaryKeyRelatedField):
 
 # Methodical Work Serializers
 class MethodicalWorkWriteSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = WorkAuthorsField()
     department = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
@@ -85,6 +134,10 @@ class MethodicalWorkWriteSerializer(serializers.ModelSerializer):
             "department",
             "is_department_visible",
         )
+        extra_kwargs = {
+            "file": {"required": False, "allow_null": True},
+            "permission_file": {"required": False, "allow_null": True},
+        }
 
     def create(self, validated_data):
         authors = validated_data.pop("authors", [])
@@ -102,6 +155,13 @@ class MethodicalWorkWriteSerializer(serializers.ModelSerializer):
                 name=Department.DEFAULT_NAME
             ).first()
 
+        # Get files from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+            if "permission_file" not in validated_data and "permission_file" in request.FILES:
+                validated_data["permission_file"] = request.FILES["permission_file"]
+
         with transaction.atomic():
             instance = MethodicalWork.objects.create(**validated_data)
             if authors:
@@ -110,6 +170,23 @@ class MethodicalWorkWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         authors = validated_data.pop("authors", None)
+        request = self.context.get("request")
+        
+        # Get files from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+            if "permission_file" not in validated_data and "permission_file" in request.FILES:
+                validated_data["permission_file"] = request.FILES["permission_file"]
+        
+        # Handle file updates - delete old files if new ones are provided
+        if "file" in validated_data and instance.file:
+            # Delete old file
+            instance.file.delete(save=False)
+        if "permission_file" in validated_data and instance.permission_file:
+            # Delete old permission file
+            instance.permission_file.delete(save=False)
+        
         with transaction.atomic():
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
@@ -118,8 +195,16 @@ class MethodicalWorkWriteSerializer(serializers.ModelSerializer):
                 instance.authors.set(authors)
         return instance
 
+    def to_representation(self, instance):
+        """Override to properly serialize authors field for output."""
+        representation = super().to_representation(instance)
+        # Convert authors ManyRelatedManager to list of IDs
+        representation['authors'] = [author.id for author in instance.authors.all()]
+        return representation
+
 
 class MethodicalWorkListSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = ProfileShortSerializer(many=True, read_only=True)
     owner = ProfileShortSerializer(read_only=True)
     department = DepartmentSerializer(read_only=True)
@@ -169,6 +254,7 @@ class MethodicalWorkDetailSerializer(MethodicalWorkListSerializer):
 
 # Research Work Serializers
 class ResearchWorkWriteSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = WorkAuthorsField()
     department = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
@@ -212,6 +298,11 @@ class ResearchWorkWriteSerializer(serializers.ModelSerializer):
                 name=Department.DEFAULT_NAME
             ).first()
 
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+
         with transaction.atomic():
             instance = ResearchWork.objects.create(**validated_data)
             if authors:
@@ -220,6 +311,18 @@ class ResearchWorkWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         authors = validated_data.pop("authors", None)
+        request = self.context.get("request")
+        
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+        
+        # Handle file updates - delete old file if new one is provided
+        if "file" in validated_data and instance.file:
+            # Delete old file
+            instance.file.delete(save=False)
+        
         with transaction.atomic():
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
@@ -228,8 +331,16 @@ class ResearchWorkWriteSerializer(serializers.ModelSerializer):
                 instance.authors.set(authors)
         return instance
 
+    def to_representation(self, instance):
+        """Override to properly serialize authors field for output."""
+        representation = super().to_representation(instance)
+        # Convert authors ManyRelatedManager to list of IDs
+        representation['authors'] = [author.id for author in instance.authors.all()]
+        return representation
+
 
 class ResearchWorkListSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = ProfileShortSerializer(many=True, read_only=True)
     owner = ProfileShortSerializer(read_only=True)
     department = DepartmentSerializer(read_only=True)
@@ -269,6 +380,7 @@ class ResearchWorkDetailSerializer(ResearchWorkListSerializer):
 
 # Certificate Serializers
 class CertificateWriteSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = WorkAuthorsField()
     department = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
@@ -295,6 +407,10 @@ class CertificateWriteSerializer(serializers.ModelSerializer):
             "department",
             "is_department_visible",
         )
+        extra_kwargs = {
+            "file": {"required": False, "allow_null": True},
+            "publisher": {"required": False, "allow_blank": True},
+        }
 
     def create(self, validated_data):
         authors = validated_data.pop("authors", [])
@@ -312,6 +428,11 @@ class CertificateWriteSerializer(serializers.ModelSerializer):
                 name=Department.DEFAULT_NAME
             ).first()
 
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+
         with transaction.atomic():
             instance = Certificate.objects.create(**validated_data)
             if authors:
@@ -320,6 +441,18 @@ class CertificateWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         authors = validated_data.pop("authors", None)
+        request = self.context.get("request")
+        
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+        
+        # Handle file updates - delete old file if new one is provided
+        if "file" in validated_data and instance.file:
+            # Delete old file
+            instance.file.delete(save=False)
+        
         with transaction.atomic():
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
@@ -328,8 +461,16 @@ class CertificateWriteSerializer(serializers.ModelSerializer):
                 instance.authors.set(authors)
         return instance
 
+    def to_representation(self, instance):
+        """Override to properly serialize authors field for output."""
+        representation = super().to_representation(instance)
+        # Convert authors ManyRelatedManager to list of IDs
+        representation['authors'] = [author.id for author in instance.authors.all()]
+        return representation
+
 
 class CertificateListSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = ProfileShortSerializer(many=True, read_only=True)
     owner = ProfileShortSerializer(read_only=True)
     department = DepartmentSerializer(read_only=True)
@@ -369,6 +510,7 @@ class CertificateDetailSerializer(CertificateListSerializer):
 
 # Software Certificate Serializers
 class SoftwareCertificateWriteSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = WorkAuthorsField()
     department = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
@@ -396,6 +538,12 @@ class SoftwareCertificateWriteSerializer(serializers.ModelSerializer):
             "department",
             "is_department_visible",
         )
+        extra_kwargs = {
+            "file": {"required": False, "allow_null": True},
+            "issued_by": {"required": False, "allow_blank": True},
+            "approval_date": {"required": False, "allow_null": True},
+            "cert_number": {"required": False, "allow_blank": True},
+        }
 
     def create(self, validated_data):
         authors = validated_data.pop("authors", [])
@@ -413,6 +561,11 @@ class SoftwareCertificateWriteSerializer(serializers.ModelSerializer):
                 name=Department.DEFAULT_NAME
             ).first()
 
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+
         with transaction.atomic():
             instance = SoftwareCertificate.objects.create(**validated_data)
             if authors:
@@ -421,6 +574,18 @@ class SoftwareCertificateWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         authors = validated_data.pop("authors", None)
+        request = self.context.get("request")
+        
+        # Get file from request.FILES if not in validated_data
+        if request and hasattr(request, "FILES"):
+            if "file" not in validated_data and "file" in request.FILES:
+                validated_data["file"] = request.FILES["file"]
+        
+        # Handle file updates - delete old file if new one is provided
+        if "file" in validated_data and instance.file:
+            # Delete old file
+            instance.file.delete(save=False)
+        
         with transaction.atomic():
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
@@ -429,8 +594,16 @@ class SoftwareCertificateWriteSerializer(serializers.ModelSerializer):
                 instance.authors.set(authors)
         return instance
 
+    def to_representation(self, instance):
+        """Override to properly serialize authors field for output."""
+        representation = super().to_representation(instance)
+        # Convert authors ManyRelatedManager to list of IDs
+        representation['authors'] = [author.id for author in instance.authors.all()]
+        return representation
+
 
 class SoftwareCertificateListSerializer(serializers.ModelSerializer):
+    year = AcademicYearField()
     authors = ProfileShortSerializer(many=True, read_only=True)
     owner = ProfileShortSerializer(read_only=True)
     department = DepartmentSerializer(read_only=True)

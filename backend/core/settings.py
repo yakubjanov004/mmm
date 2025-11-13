@@ -45,8 +45,8 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "accounts",
-    "works",
-    "files",
+    "works.apps.WorksConfig",
+    "files.apps.FilesConfig",
     "stats",
 ]
 

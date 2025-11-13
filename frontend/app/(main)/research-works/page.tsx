@@ -41,7 +41,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from "@/components/ui/breadcrumb"
 import { MultiSelect } from "@/components/ui/multi-select"
-import { Edit, Search, Plus, Trash2, Eye, Loader2 } from "lucide-react"
+import { Edit, Search, Plus, Trash2, Eye, Loader2, X, FileText } from "lucide-react"
 import { getCurrentUserSync, canEditRecord } from "@/lib/auth"
 import { worksAPI, usersAPI } from "@/lib/api"
 import { mapBackendResearchWorkToFrontend, mapFrontendResearchWorkToBackend } from "@/lib/api-mappers"
@@ -57,8 +57,14 @@ export default function ResearchWorksPage() {
   const [languageFilter, setLanguageFilter] = useState<string>("")
   const [editingWork, setEditingWork] = useState<ResearchWork | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [viewingWork, setViewingWork] = useState<ResearchWork | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [formData, setFormData] = useState<Partial<ResearchWork>>({})
+  const [fileData, setFileData] = useState<{
+    file?: File | null
+    existingFileUrl?: string | null
+  }>({})
 
   // Admin cannot access this page
   if (currentUser?.roli === "Admin") {
@@ -157,14 +163,20 @@ export default function ResearchWorksPage() {
 
   const handleCreate = () => {
     setEditingWork(null)
+    const currentYear = new Date().getFullYear()
+    const academicYear = `${currentYear}-${currentYear + 1}`
     setFormData({
       mualliflar: currentUser ? [currentUser.id] : [],
       ilmiy_ish_nomi: "",
       anjuman_yoki_jurnal_nomi: "",
-      yili: new Date().getFullYear().toString(),
+      yili: academicYear,
       tili: "O'zbek",
       ilmiy_ish_turi: "Mahalliy maqola",
       link: "",
+    })
+    setFileData({
+      file: null,
+      existingFileUrl: null,
     })
     setIsDialogOpen(true)
   }
@@ -172,6 +184,10 @@ export default function ResearchWorksPage() {
   const handleEdit = (work: ResearchWork) => {
     setEditingWork(work)
     setFormData(work)
+    setFileData({
+      file: null,
+      existingFileUrl: work.ilmiy_ish_fayli || null,
+    })
     setIsDialogOpen(true)
   }
 
@@ -180,9 +196,21 @@ export default function ResearchWorksPage() {
       toast.error("Ilmiy ish nomi va Anjuman/Jurnal nomi majburiy maydonlar")
       return
     }
-    if (formData.yili && !/^\d{4}$/.test(formData.yili)) {
-      toast.error("Yil 4 xonali raqam bo'lishi kerak")
+    if (formData.yili && !/^\d{4}-\d{4}$/.test(formData.yili)) {
+      toast.error("Yil '2024-2025' formatida bo'lishi kerak")
       return
+    }
+    if (formData.yili) {
+      const firstYear = parseInt(formData.yili.split("-")[0])
+      const secondYear = parseInt(formData.yili.split("-")[1])
+      if (isNaN(firstYear) || isNaN(secondYear) || secondYear !== firstYear + 1) {
+        toast.error("Yil '2024-2025' formatida bo'lishi kerak (masalan: 2024-2025)")
+        return
+      }
+      if (firstYear < 2000 || firstYear > 2035) {
+        toast.error("Yil 2000-2035 oralig'ida bo'lishi kerak")
+        return
+      }
     }
     if (formData.link && !formData.link.startsWith("http")) {
       toast.error("Link http:// yoki https:// bilan boshlanishi kerak")
@@ -199,13 +227,16 @@ export default function ResearchWorksPage() {
             value.forEach((id: number) => {
               formDataToSend.append("authors", String(id))
             })
-          } else if (key === "file" && value instanceof File) {
-            formDataToSend.append("file", value)
           } else {
             formDataToSend.append(key, String(value))
           }
         }
       })
+
+      // Add file if new file is selected
+      if (fileData.file) {
+        formDataToSend.append("file", fileData.file)
+      }
 
       if (editingWork) {
         await worksAPI.research.update(editingWork.id, formDataToSend)
@@ -396,7 +427,15 @@ export default function ResearchWorksPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setViewingWork(work)
+                              setIsViewDialogOpen(true)
+                            }}
+                            title="To'liq ma'lumotlarni ko'rish"
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {canEdit && (
@@ -482,12 +521,27 @@ export default function ResearchWorksPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="yili">Yili (YYYY)</Label>
-                <Input
-                  id="yili"
+                <Label htmlFor="yili">O'quv yili</Label>
+                <Select
                   value={formData.yili || ""}
-                  onChange={(e) => setFormData({ ...formData, yili: e.target.value })}
-                />
+                  onValueChange={(value) => setFormData({ ...formData, yili: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="O'quv yilini tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const startYear = new Date().getFullYear() - 5 + i
+                      const endYear = startYear + 1
+                      const yearValue = `${startYear}-${endYear}`
+                      return (
+                        <SelectItem key={yearValue} value={yearValue}>
+                          {yearValue}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tili">Til</Label>
@@ -532,17 +586,42 @@ export default function ResearchWorksPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="ilmiy_ish_fayli">Ilmiy ish fayli</Label>
+              {fileData.existingFileUrl && !fileData.file && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md mb-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm flex-1">Mavjud fayl yuklangan</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFileData({ ...fileData, existingFileUrl: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {fileData.file && (
+                <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md mb-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm flex-1">{fileData.file.name} ({(fileData.file.size / 1024).toFixed(2)} KB)</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFileData({ ...fileData, file: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
               <Input
                 id="ilmiy_ish_fayli"
                 type="file"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    toast.success(`Fayl: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
-                    setFormData({
-                      ...formData,
-                      ilmiy_ish_fayli: `/demo/${file.name}`,
-                    })
+                    toast.success(`Fayl tanlandi: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
+                    setFileData({ ...fileData, file, existingFileUrl: null })
                   }
                 }}
               />
@@ -562,6 +641,104 @@ export default function ResearchWorksPage() {
               Bekor qilish
             </Button>
             <Button onClick={handleSave}>Saqlash</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ilmiy ish ma'lumotlari</DialogTitle>
+            <DialogDescription>To'liq ma'lumotlar</DialogDescription>
+          </DialogHeader>
+          {viewingWork && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">ID</Label>
+                  <p className="text-sm">{viewingWork.id}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Yili</Label>
+                  <p className="text-sm">{viewingWork.yili}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Ilmiy ish nomi</Label>
+                <p className="text-sm">{viewingWork.ilmiy_ish_nomi}</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Anjuman/Jurnal nomi</Label>
+                <p className="text-sm">{viewingWork.anjuman_yoki_jurnal_nomi}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Ilmiy ish turi</Label>
+                  <p className="text-sm">
+                    <Badge variant="outline">{viewingWork.ilmiy_ish_turi}</Badge>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Til</Label>
+                  <p className="text-sm">
+                    <Badge variant="secondary">{viewingWork.tili}</Badge>
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Mualliflar</Label>
+                <p className="text-sm">
+                  {getAuthorNames(viewingWork.mualliflar) || "Mualliflar ko'rsatilmagan"}
+                </p>
+              </div>
+              {viewingWork.link && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Havola (DOI/Journal link)</Label>
+                  <p className="text-sm">
+                    <a 
+                      href={viewingWork.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {viewingWork.link}
+                    </a>
+                  </p>
+                </div>
+              )}
+              {viewingWork.ilmiy_ish_fayli && typeof viewingWork.ilmiy_ish_fayli === 'string' && viewingWork.ilmiy_ish_fayli.trim() !== "" && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Ilmiy ish fayli</Label>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={viewingWork.ilmiy_ish_fayli} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Faylni ko'rish
+                    </a>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Yaratilgan sana</Label>
+                  <p className="text-sm">
+                    {viewingWork.created_at ? new Date(viewingWork.created_at).toLocaleString('uz-UZ') : "-"}
+                  </p>
+                </div>
+                {viewingWork.department && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Kafedra</Label>
+                    <p className="text-sm">{viewingWork.department.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsViewDialogOpen(false)}>Yopish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

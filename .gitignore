@@ -12,7 +12,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -22,13 +21,40 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+/migrations
 
 # Django
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-/media
+# Media files - ignore all files but keep directory structure
+backend/media/*
+!backend/media/.gitkeep
+!backend/media/works/
+backend/media/works/*
+!backend/media/works/.gitkeep
+!backend/media/works/methodical/
+backend/media/works/methodical/*
+!backend/media/works/methodical/.gitkeep
+!backend/media/works/methodical/permissions/
+backend/media/works/methodical/permissions/*
+!backend/media/works/methodical/permissions/.gitkeep
+!backend/media/works/research/
+backend/media/works/research/*
+!backend/media/works/research/.gitkeep
+!backend/media/works/certificates/
+backend/media/works/certificates/*
+!backend/media/works/certificates/.gitkeep
+!backend/media/works/software-certificates/
+backend/media/works/software-certificates/*
+!backend/media/works/software-certificates/.gitkeep
+!backend/media/uploads/
+backend/media/uploads/*
+!backend/media/uploads/.gitkeep
+!backend/media/uploads/files/
+backend/media/uploads/files/*
+!backend/media/uploads/files/.gitkeep
 /staticfiles
 /static
 .env

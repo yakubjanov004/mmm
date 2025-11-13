@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,18 +17,26 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from "@/co
 import { Moon, Sun, Globe, Lock } from "lucide-react"
 import { useTheme } from "next-themes"
 import { getCurrentUserSync } from "@/lib/auth"
+import { authAPI } from "@/lib/api"
 import { toast } from "sonner"
 import Link from "next/link"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const currentUser = getCurrentUserSync()
   const [language, setLanguage] = useState("uz")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
-  const handlePasswordChange = () => {
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handlePasswordChange = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast.error("Barcha maydonlar to'ldirilishi kerak")
       return
@@ -41,10 +49,19 @@ export default function SettingsPage() {
       toast.error("Parol kamida 6 belgidan iborat bo'lishi kerak")
       return
     }
-    toast.success("Parol muvaffaqiyatli o'zgartirildi")
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmPassword("")
+
+    setIsChangingPassword(true)
+    try {
+      await authAPI.changePassword(currentPassword, newPassword)
+      toast.success("Parol muvaffaqiyatli o'zgartirildi")
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error: any) {
+      toast.error(error.message || "Parolni o'zgartirishda xatolik yuz berdi")
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   return (
@@ -69,7 +86,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {theme === "dark" ? (
+            {mounted && theme === "dark" ? (
               <Moon className="w-5 h-5" />
             ) : (
               <Sun className="w-5 h-5" />
@@ -87,8 +104,9 @@ export default function SettingsPage() {
               </p>
             </div>
             <Switch
-              checked={theme === "dark"}
+              checked={mounted && theme === "dark"}
               onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              disabled={!mounted}
             />
           </div>
         </CardContent>
@@ -163,7 +181,9 @@ export default function SettingsPage() {
               placeholder="Yangi parolni qayta kiriting"
             />
           </div>
-          <Button onClick={handlePasswordChange}>Parolni o'zgartirish</Button>
+          <Button onClick={handlePasswordChange} disabled={isChangingPassword}>
+            {isChangingPassword ? "Kuting..." : "Parolni o'zgartirish"}
+          </Button>
         </CardContent>
       </Card>
 

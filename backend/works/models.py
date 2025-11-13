@@ -14,7 +14,7 @@ class WorkLanguage(models.TextChoices):
 
 class WorkBase(models.Model):
     title = models.CharField(max_length=255)
-    year = models.PositiveIntegerField()
+    year = models.CharField(max_length=9, help_text="O'quv yili formatida (masalan: 2024-2025)")
     language = models.CharField(
         max_length=16,
         choices=WorkLanguage.choices,
@@ -56,7 +56,7 @@ class MethodicalWork(WorkBase):
 
     publisher = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=32, choices=Types.choices)
-    file = models.FileField(upload_to="works/methodical/")
+    file = models.FileField(upload_to="works/methodical/", null=True, blank=True)
     permission_file = models.FileField(
         upload_to="works/methodical/permissions/",
         blank=True,
@@ -85,9 +85,9 @@ class Certificate(WorkBase):
         LOCAL = "LOCAL", "Mahalliy"
         INTERNATIONAL = "INTERNATIONAL", "Xalqaro"
 
-    publisher = models.CharField(max_length=255)
+    publisher = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=32, choices=Types.choices)
-    file = models.FileField(upload_to="works/certificates/")
+    file = models.FileField(upload_to="works/certificates/", null=True, blank=True)
     description = models.TextField(blank=True)
 
 
@@ -96,8 +96,8 @@ class SoftwareCertificate(WorkBase):
         DGU = "DGU", "DGU"
         BGU = "BGU", "BGU"
 
-    issued_by = models.CharField(max_length=255)
-    approval_date = models.DateField()
-    cert_number = models.CharField(max_length=255)
+    issued_by = models.CharField(max_length=255, blank=True)
+    approval_date = models.DateField(null=True, blank=True)
+    cert_number = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=32, choices=Types.choices)
-    file = models.FileField(upload_to="works/software-certificates/")
+    file = models.FileField(upload_to="works/software-certificates/", null=True, blank=True)

@@ -56,6 +56,8 @@ export default function SoftwareCertificatesPage() {
   const [typeFilter, setTypeFilter] = useState<string>("")
   const [editingCert, setEditingCert] = useState<SoftwareCertificate | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [viewingCert, setViewingCert] = useState<SoftwareCertificate | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [formData, setFormData] = useState<Partial<SoftwareCertificate>>({})
 
@@ -110,7 +112,7 @@ export default function SoftwareCertificatesPage() {
           usersAPI.list().catch(() => []),
         ])
 
-        const certsList = (certsData.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
+        const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
         setCertificates(certsList)
         setUsers(Array.isArray(usersData) ? usersData.map((u: any) => ({
           id: u.id,
@@ -213,7 +215,7 @@ export default function SoftwareCertificatesPage() {
       
       // Refresh data
       const certsData = await worksAPI.softwareCertificates.list()
-      const certsList = (certsData.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
+      const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
       setCertificates(certsList)
       
       setIsDialogOpen(false)
@@ -231,7 +233,7 @@ export default function SoftwareCertificatesPage() {
       
       // Refresh data
       const certsData = await worksAPI.softwareCertificates.list()
-      const certsList = (certsData.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
+      const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendSoftwareCertificateToFrontend)
       setCertificates(certsList)
       
       setDeleteId(null)
@@ -375,7 +377,15 @@ export default function SoftwareCertificatesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setViewingCert(cert)
+                              setIsViewDialogOpen(true)
+                            }}
+                            title="To'liq ma'lumotlarni ko'rish"
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {canEdit && (
@@ -525,6 +535,92 @@ export default function SoftwareCertificatesPage() {
               Bekor qilish
             </Button>
             <Button onClick={handleSave}>Saqlash</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dasturiy guvohnoma ma'lumotlari</DialogTitle>
+            <DialogDescription>To'liq ma'lumotlar</DialogDescription>
+          </DialogHeader>
+          {viewingCert && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">ID</Label>
+                  <p className="text-sm">{viewingCert.id}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Tasdiqlangan sana</Label>
+                  <p className="text-sm">
+                    {viewingCert.tasdiqlangan_sana ? new Date(viewingCert.tasdiqlangan_sana).toLocaleDateString('uz-UZ') : "-"}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Nomi</Label>
+                <p className="text-sm">{viewingCert.nomi}</p>
+              </div>
+              {viewingCert.berilgan_joy && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Berilgan joy</Label>
+                  <p className="text-sm">{viewingCert.berilgan_joy}</p>
+                </div>
+              )}
+              {viewingCert.guvohnoma_nomeri && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Guvohnoma nomeri</Label>
+                  <p className="text-sm">{viewingCert.guvohnoma_nomeri}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="font-semibold">Guvohnoma turi</Label>
+                <p className="text-sm">
+                  <Badge variant="outline">{viewingCert.guvohnoma_turi}</Badge>
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Mualliflar</Label>
+                <p className="text-sm">
+                  {getAuthorNames(viewingCert.mualliflar) || "Mualliflar ko'rsatilmagan"}
+                </p>
+              </div>
+              {viewingCert.fayl_url && typeof viewingCert.fayl_url === 'string' && viewingCert.fayl_url.trim() !== "" && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Guvohnoma fayli</Label>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={viewingCert.fayl_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Faylni ko'rish
+                    </a>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Yaratilgan sana</Label>
+                  <p className="text-sm">
+                    {viewingCert.created_at ? new Date(viewingCert.created_at).toLocaleString('uz-UZ') : "-"}
+                  </p>
+                </div>
+                {viewingCert.department && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Kafedra</Label>
+                    <p className="text-sm">{viewingCert.department.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsViewDialogOpen(false)}>Yopish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

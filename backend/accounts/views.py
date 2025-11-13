@@ -9,10 +9,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from accounts.models import Department, Position
 from accounts.permissions import IsAdmin
 from accounts.serializers import (
+    ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
     DepartmentSerializer,
     PositionSerializer,
     ProfileSerializer,
+    UpdateProfileSerializer,
     UserAdminReadSerializer,
     UserAdminWriteSerializer,
 )
@@ -53,6 +55,22 @@ class CurrentUserView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user.profile
+
+
+@extend_schema(
+    tags=["Authentication"],
+    summary="Change password",
+    description="Change the password for the currently authenticated user.",
+)
+class ChangePasswordView(generics.GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "Parol muvaffaqiyatli o'zgartirildi."}, status=200)
 
 
 @extend_schema(

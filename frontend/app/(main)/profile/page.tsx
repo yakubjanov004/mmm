@@ -31,7 +31,22 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from "@/components/ui/breadcrumb"
-import { Edit, Search, Plus, Loader2 } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { 
+  Edit, 
+  Search, 
+  Plus, 
+  Loader2, 
+  User as UserIcon, 
+  Phone, 
+  Mail, 
+  Calendar, 
+  Briefcase, 
+  Building2, 
+  ExternalLink,
+  Award,
+  GraduationCap
+} from "lucide-react"
 import { getCurrentUserSync, getCurrentUser } from "@/lib/auth"
 import { authAPI, usersAPI, departmentsAPI, positionsAPI } from "@/lib/api"
 import { mapBackendUserToFrontend } from "@/lib/api-mappers"
@@ -150,23 +165,18 @@ export default function ProfilePage() {
     }
 
     try {
-      const userData: any = {
-        username: formData.username || currentUser.username,
+      const profileData = {
         first_name: formData.ism || "",
         last_name: formData.familiya || "",
-        email: "",
-        role: formData.roli === "Admin" ? "ADMIN" : formData.roli === "Head of Department" ? "HOD" : "TEACHER",
-        department: formData.kafedra_id || currentUser.kafedra_id || null,
-        position: positions.find(p => p.name === formData.lavozimi)?.id || null,
         phone: formData.telefon_raqami || "",
-        birth_date: formData.tugilgan_yili ? `${formData.tugilgan_yili}-01-01` : null,
+        birth_date: formData.tugilgan_sana || (formData.tugilgan_yili ? `${formData.tugilgan_yili}-01-01` : null),
         scopus: formData.scopus_link || "",
         scholar: formData.google_scholar_link || "",
         research_id: formData.research_id_link || "",
         user_id: formData.user_id || "",
       }
 
-      await usersAPI.update(currentUser.id, userData)
+      await authAPI.updateProfile(profileData)
       toast.success("Profil muvaffaqiyatli yangilandi")
       
       // Refresh user data
@@ -199,106 +209,256 @@ export default function ProfilePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Profil</h1>
-          <p className="text-muted-foreground">Foydalanuvchilar ro'yxati</p>
+          <p className="text-muted-foreground">Shaxsiy ma'lumotlaringiz va profil sozlamalari</p>
         </div>
-        {currentUser?.roli === "Admin" && (
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Yangi foydalanuvchi
+        {currentUser && (
+          <Button onClick={() => handleEdit(currentUser)}>
+            <Edit className="w-4 h-4 mr-2" />
+            Profilni tahrirlash
           </Button>
         )}
       </div>
 
-      {/* Search */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Qidiruv (ism, familiya, user_id)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-md"
-            />
-          </div>
-        </CardHeader>
-      </Card>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : currentUser ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Profile Header Card */}
+          <Card className="lg:col-span-3">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                <Avatar className="w-24 h-24">
+                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+                    {currentUser.ism?.[0]?.toUpperCase() || ""}
+                    {currentUser.familiya?.[0]?.toUpperCase() || ""}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h2 className="text-2xl font-bold">
+                      {currentUser.ism} {currentUser.familiya}
+                      {currentUser.otasining_ismi && ` ${currentUser.otasining_ismi}`}
+                    </h2>
+                    <Badge
+                      variant={
+                        currentUser.roli === "Admin"
+                          ? "destructive"
+                          : currentUser.roli === "Head of Department"
+                            ? "default"
+                            : "secondary"
+                      }
+                      className="text-sm"
+                    >
+                      {currentUser.roli}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    {currentUser.user_id && (
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="w-4 h-4" />
+                        <span>ID: {currentUser.user_id}</span>
+                      </div>
+                    )}
+                    {currentUser.lavozimi && (
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="w-4 h-4" />
+                        <span>{currentUser.lavozimi}</span>
+                      </div>
+                    )}
+                    {currentUser.department && (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        <span>{currentUser.department}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Foydalanuvchilar</CardTitle>
-          <CardDescription>
-            {filteredUsers.length} ta foydalanuvchi topildi
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Foydalanuvchilar topilmadi
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Ism</TableHead>
-                  <TableHead>Familiya</TableHead>
-                  <TableHead>Otasining ismi</TableHead>
-                  <TableHead>Tug'ilgan yili</TableHead>
-                  <TableHead>Lavozimi</TableHead>
-                  <TableHead>Telefon</TableHead>
-                  <TableHead>Roli</TableHead>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Amallar</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>{user.id}</TableCell>
-                    <TableCell className="font-medium">{user.ism}</TableCell>
-                    <TableCell>{user.familiya}</TableCell>
-                    <TableCell>{user.otasining_ismi}</TableCell>
-                    <TableCell>{user.tugilgan_yili}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.lavozimi}</Badge>
-                    </TableCell>
-                    <TableCell>{user.telefon_raqami}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          user.roli === "Admin"
-                            ? "destructive"
-                            : user.roli === "Head of Department"
-                              ? "default"
-                              : "secondary"
-                        }
-                      >
-                        {user.roli}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{user.user_id}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(user)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          {/* Personal Information */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserIcon className="w-5 h-5" />
+                Shaxsiy ma'lumotlar
+              </CardTitle>
+              <CardDescription>Asosiy profil ma'lumotlari</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground">Ism</Label>
+                  <p className="font-medium">{currentUser.ism || "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground">Familiya</Label>
+                  <p className="font-medium">{currentUser.familiya || "—"}</p>
+                </div>
+                {currentUser.otasining_ismi && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Otasining ismi</Label>
+                    <p className="font-medium">{currentUser.otasining_ismi}</p>
+                  </div>
+                )}
+                {(currentUser.tugilgan_sana || currentUser.tugilgan_yili) && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Tug'ilgan sanasi
+                    </Label>
+                    <p className="font-medium">
+                      {currentUser.tugilgan_sana 
+                        ? new Date(currentUser.tugilgan_sana).toLocaleDateString("uz-UZ", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric"
+                          })
+                        : currentUser.tugilgan_yili
+                      }
+                    </p>
+                  </div>
+                )}
+                {currentUser.telefon_raqami && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      Telefon raqami
+                    </Label>
+                    <p className="font-medium">{currentUser.telefon_raqami}</p>
+                  </div>
+                )}
+                {currentUser.username && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Username
+                    </Label>
+                    <p className="font-medium">{currentUser.username}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Professional Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5" />
+                Kasbiy ma'lumotlar
+              </CardTitle>
+              <CardDescription>Ish va lavozim ma'lumotlari</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                {currentUser.lavozimi && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Lavozimi</Label>
+                    <p className="font-medium">{currentUser.lavozimi}</p>
+                  </div>
+                )}
+                {currentUser.department && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Kafedra</Label>
+                    <p className="font-medium">{currentUser.department}</p>
+                  </div>
+                )}
+                {currentUser.roli && (
+                  <div className="space-y-1">
+                    <Label className="text-sm text-muted-foreground">Roli</Label>
+                    <Badge
+                      variant={
+                        currentUser.roli === "Admin"
+                          ? "destructive"
+                          : currentUser.roli === "Head of Department"
+                            ? "default"
+                            : "secondary"
+                      }
+                    >
+                      {currentUser.roli}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Research Links */}
+          {(currentUser.scopus_link || currentUser.google_scholar_link || currentUser.research_id_link) && (
+            <Card className="lg:col-span-3">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5" />
+                  Ilmiy faoliyat
+                </CardTitle>
+                <CardDescription>Scopus, Google Scholar va boshqa ilmiy profillar</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {currentUser.scopus_link && (
+                    <a
+                      href={currentUser.scopus_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <Award className="w-5 h-5 text-blue-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">Scopus</p>
+                        <p className="text-xs text-muted-foreground truncate">Profil linki</p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                    </a>
+                  )}
+                  {currentUser.google_scholar_link && (
+                    <a
+                      href={currentUser.google_scholar_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <GraduationCap className="w-5 h-5 text-green-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">Google Scholar</p>
+                        <p className="text-xs text-muted-foreground truncate">Profil linki</p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                    </a>
+                  )}
+                  {currentUser.research_id_link && (
+                    <a
+                      href={currentUser.research_id_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <Award className="w-5 h-5 text-purple-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">Research ID</p>
+                        <p className="text-xs text-muted-foreground truncate">Profil linki</p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                    </a>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <UserIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Profil ma'lumotlari topilmadi</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -350,14 +510,22 @@ export default function ProfilePage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="tugilgan_yili">Tug'ilgan yili (YYYY)</Label>
+                <Label htmlFor="tugilgan_sana">Tug'ilgan sanasi</Label>
                 <Input
-                  id="tugilgan_yili"
-                  value={formData.tugilgan_yili || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tugilgan_yili: e.target.value })
+                  id="tugilgan_sana"
+                  type="date"
+                  value={formData.tugilgan_sana || formData.tugilgan_yili ? 
+                    (formData.tugilgan_sana || `${formData.tugilgan_yili}-01-01`) : ""
                   }
-                  placeholder="2024"
+                  onChange={(e) => {
+                    const dateValue = e.target.value
+                    const yearOnly = dateValue ? dateValue.split("-")[0] : ""
+                    setFormData({ 
+                      ...formData, 
+                      tugilgan_sana: dateValue,
+                      tugilgan_yili: yearOnly
+                    })
+                  }}
                 />
               </div>
               <div className="space-y-2">

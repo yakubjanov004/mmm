@@ -131,6 +131,58 @@ export default function StatisticsPage() {
     fetchData()
   }, [currentUser])
 
+  // All hooks must be called before any conditional returns
+  // Filter by year
+  const filteredMethodical = useMemo(() => {
+    if (yearFilter === "all") return methodicalWorks
+    return methodicalWorks.filter((w) => w.yili === yearFilter)
+  }, [methodicalWorks, yearFilter])
+
+  const filteredResearch = useMemo(() => {
+    if (yearFilter === "all") return researchWorks
+    return researchWorks.filter((w) => w.yili === yearFilter)
+  }, [researchWorks, yearFilter])
+
+  // Year trend data
+  const yearTrendData = useMemo(() => {
+    const years = Array.from(
+      new Set([
+        ...methodicalWorks.map((w) => w.yili),
+        ...researchWorks.map((w) => w.yili),
+      ]),
+    ).sort()
+
+    return years.map((year) => ({
+      year,
+      Methodical: methodicalWorks.filter((w) => w.yili === year).length,
+      Research: researchWorks.filter((w) => w.yili === year).length,
+      Certificates: certificates.filter((c) => c.yili === year).length,
+    }))
+  }, [methodicalWorks, researchWorks, certificates])
+
+  // Language distribution
+  const languageData = useMemo(() => {
+    const all = [
+      ...methodicalWorks.map((w) => w.tili),
+      ...researchWorks.map((w) => w.tili),
+      ...certificates.map((c) => c.tili),
+    ]
+    const counts: Record<string, number> = {}
+    all.forEach((lang) => {
+      counts[lang] = (counts[lang] || 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [methodicalWorks, researchWorks, certificates])
+
+  // Type distribution for methodical works
+  const methodicalTypeData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    methodicalWorks.forEach((w) => {
+      counts[w.ish_turi] = (counts[w.ish_turi] || 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [methodicalWorks])
+
   // Admin sees system statistics, not work-related statistics
   if (currentUser?.roli === "Admin") {
     const totalUsers = users.length
@@ -260,25 +312,6 @@ export default function StatisticsPage() {
     )
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  // Filter by year
-  const filteredMethodical = useMemo(() => {
-    if (yearFilter === "all") return methodicalWorks
-    return methodicalWorks.filter((w) => w.yili === yearFilter)
-  }, [methodicalWorks, yearFilter])
-
-  const filteredResearch = useMemo(() => {
-    if (yearFilter === "all") return researchWorks
-    return researchWorks.filter((w) => w.yili === yearFilter)
-  }, [researchWorks, yearFilter])
-
   // Statistics data
   const totalStats = {
     methodical: methodicalWorks.length,
@@ -288,45 +321,13 @@ export default function StatisticsPage() {
     files: files.length,
   }
 
-  // Year trend data
-  const yearTrendData = useMemo(() => {
-    const years = Array.from(
-      new Set([
-        ...methodicalWorks.map((w) => w.yili),
-        ...researchWorks.map((w) => w.yili),
-      ]),
-    ).sort()
-
-    return years.map((year) => ({
-      year,
-      Methodical: methodicalWorks.filter((w) => w.yili === year).length,
-      Research: researchWorks.filter((w) => w.yili === year).length,
-      Certificates: certificates.filter((c) => c.yili === year).length,
-    }))
-  }, [methodicalWorks, researchWorks, certificates])
-
-  // Language distribution
-  const languageData = useMemo(() => {
-    const all = [
-      ...methodicalWorks.map((w) => w.tili),
-      ...researchWorks.map((w) => w.tili),
-      ...certificates.map((c) => c.tili),
-    ]
-    const counts: Record<string, number> = {}
-    all.forEach((lang) => {
-      counts[lang] = (counts[lang] || 0) + 1
-    })
-    return Object.entries(counts).map(([name, value]) => ({ name, value }))
-  }, [methodicalWorks, researchWorks, certificates])
-
-  // Type distribution for methodical works
-  const methodicalTypeData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    methodicalWorks.forEach((w) => {
-      counts[w.ish_turi] = (counts[w.ish_turi] || 0) + 1
-    })
-    return Object.entries(counts).map(([name, value]) => ({ name, value }))
-  }, [methodicalWorks])
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -7,10 +7,10 @@ import { BarChart3, Users, FileText, Files, Settings, LogOut } from "lucide-reac
 
 const navItems = [
   { href: "/prorector/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/prorector/files", label: "Files", icon: Files },
-  { href: "/prorector/users", label: "Users", icon: Users },
-  { href: "/prorector/reports", label: "Reports", icon: FileText },
-  { href: "/prorector/settings", label: "Settings", icon: Settings },
+  { href: "/prorector/files", label: "Kafedra Faylları", icon: Files },
+  { href: "/prorector/users", label: "Foydalanuvchilar", icon: Users },
+  { href: "/prorector/reports", label: "Hisobotlar", icon: FileText },
+  { href: "/prorector/settings", label: "Sozlamalar", icon: Settings },
 ]
 
 export function Sidebar() {

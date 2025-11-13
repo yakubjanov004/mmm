@@ -42,7 +42,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList } from "@/components/ui/breadcrumb"
 import { MultiSelect } from "@/components/ui/multi-select"
-import { Edit, Search, Plus, Trash2, Eye, Loader2 } from "lucide-react"
+import { Edit, Search, Plus, Trash2, Eye, Loader2, X, FileText } from "lucide-react"
 import { getCurrentUserSync, canEditRecord } from "@/lib/auth"
 import { worksAPI, usersAPI } from "@/lib/api"
 import { mapBackendCertificateToFrontend, mapFrontendCertificateToBackend } from "@/lib/api-mappers"
@@ -58,8 +58,14 @@ export default function CertificatesPage() {
   const [languageFilter, setLanguageFilter] = useState<string>("")
   const [editingCert, setEditingCert] = useState<Certificate | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [viewingCert, setViewingCert] = useState<Certificate | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [formData, setFormData] = useState<Partial<Certificate>>({})
+  const [fileData, setFileData] = useState<{
+    file?: File | null
+    existingFileUrl?: string | null
+  }>({})
 
   // Admin cannot access this page
   if (currentUser?.roli === "Admin") {
@@ -112,7 +118,7 @@ export default function CertificatesPage() {
           usersAPI.list().catch(() => []),
         ])
 
-        const certsList = (certsData.results || certsData || []).map(mapBackendCertificateToFrontend)
+        const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendCertificateToFrontend)
         setCertificates(certsList)
         setUsers(Array.isArray(usersData) ? usersData.map((u: any) => ({
           id: u.id,
@@ -154,14 +160,20 @@ export default function CertificatesPage() {
 
   const handleCreate = () => {
     setEditingCert(null)
+    const currentYear = new Date().getFullYear()
+    const academicYear = `${currentYear}-${currentYear + 1}`
     setFormData({
       nomi: "",
-      yili: new Date().getFullYear().toString(),
+      yili: academicYear,
       nashriyot_nomi: "",
       mualliflar: currentUser ? [currentUser.id] : [],
       sertifikat_turi: "Mahalliy",
       tili: "O'zbek",
       desc: "",
+    })
+    setFileData({
+      file: null,
+      existingFileUrl: null,
     })
     setIsDialogOpen(true)
   }
@@ -169,6 +181,10 @@ export default function CertificatesPage() {
   const handleEdit = (cert: Certificate) => {
     setEditingCert(cert)
     setFormData(cert)
+    setFileData({
+      file: null,
+      existingFileUrl: cert.sertifikat_fayli || null,
+    })
     setIsDialogOpen(true)
   }
 
@@ -188,13 +204,16 @@ export default function CertificatesPage() {
             value.forEach((id: number) => {
               formDataToSend.append("authors", String(id))
             })
-          } else if (key === "file" && value instanceof File) {
-            formDataToSend.append("file", value)
           } else {
             formDataToSend.append(key, String(value))
           }
         }
       })
+
+      // Add file if new file is selected
+      if (fileData.file) {
+        formDataToSend.append("file", fileData.file)
+      }
 
       if (editingCert) {
         await worksAPI.certificates.update(editingCert.id, formDataToSend)
@@ -206,7 +225,7 @@ export default function CertificatesPage() {
       
       // Refresh data
       const certsData = await worksAPI.certificates.list()
-      const certsList = (certsData.results || certsData || []).map(mapBackendCertificateToFrontend)
+      const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendCertificateToFrontend)
       setCertificates(certsList)
       
       setIsDialogOpen(false)
@@ -224,7 +243,7 @@ export default function CertificatesPage() {
       
       // Refresh data
       const certsData = await worksAPI.certificates.list()
-      const certsList = (certsData.results || certsData || []).map(mapBackendCertificateToFrontend)
+      const certsList = ((certsData as any)?.results || certsData || []).map(mapBackendCertificateToFrontend)
       setCertificates(certsList)
       
       setDeleteId(null)
@@ -381,7 +400,15 @@ export default function CertificatesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setViewingCert(cert)
+                              setIsViewDialogOpen(true)
+                            }}
+                            title="To'liq ma'lumotlarni ko'rish"
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {canEdit && (
@@ -436,12 +463,27 @@ export default function CertificatesPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="yili">Yili (YYYY)</Label>
-                <Input
-                  id="yili"
+                <Label htmlFor="yili">O'quv yili</Label>
+                <Select
                   value={formData.yili || ""}
-                  onChange={(e) => setFormData({ ...formData, yili: e.target.value })}
-                />
+                  onValueChange={(value) => setFormData({ ...formData, yili: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="O'quv yilini tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const startYear = new Date().getFullYear() - 5 + i
+                      const endYear = startYear + 1
+                      const yearValue = `${startYear}-${endYear}`
+                      return (
+                        <SelectItem key={yearValue} value={yearValue}>
+                          {yearValue}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nashriyot_nomi">Nashriyot nomi</Label>
@@ -511,17 +553,42 @@ export default function CertificatesPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="sertifikat_fayli">Sertifikat fayli</Label>
+              {fileData.existingFileUrl && !fileData.file && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-md mb-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm flex-1">Mavjud fayl yuklangan</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFileData({ ...fileData, existingFileUrl: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {fileData.file && (
+                <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-md mb-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm flex-1">{fileData.file.name} ({(fileData.file.size / 1024).toFixed(2)} KB)</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFileData({ ...fileData, file: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
               <Input
                 id="sertifikat_fayli"
                 type="file"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    toast.success(`Fayl: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
-                    setFormData({
-                      ...formData,
-                      sertifikat_fayli: `/demo/${file.name}`,
-                    })
+                    toast.success(`Fayl tanlandi: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
+                    setFileData({ ...fileData, file, existingFileUrl: null })
                   }
                 }}
               />
@@ -541,6 +608,98 @@ export default function CertificatesPage() {
               Bekor qilish
             </Button>
             <Button onClick={handleSave}>Saqlash</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Sertifikat ma'lumotlari</DialogTitle>
+            <DialogDescription>To'liq ma'lumotlar</DialogDescription>
+          </DialogHeader>
+          {viewingCert && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">ID</Label>
+                  <p className="text-sm">{viewingCert.id}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Yili</Label>
+                  <p className="text-sm">{viewingCert.yili}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Nomi</Label>
+                <p className="text-sm">{viewingCert.nomi}</p>
+              </div>
+              {viewingCert.nashriyot_nomi && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Nashriyot nomi</Label>
+                  <p className="text-sm">{viewingCert.nashriyot_nomi}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Sertifikat turi</Label>
+                  <p className="text-sm">
+                    <Badge variant="outline">{viewingCert.sertifikat_turi}</Badge>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Til</Label>
+                  <p className="text-sm">
+                    <Badge variant="secondary">{viewingCert.tili}</Badge>
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Mualliflar</Label>
+                <p className="text-sm">
+                  {getAuthorNames(viewingCert.mualliflar) || "Mualliflar ko'rsatilmagan"}
+                </p>
+              </div>
+              {viewingCert.desc && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Tavsif</Label>
+                  <p className="text-sm whitespace-pre-wrap">{viewingCert.desc}</p>
+                </div>
+              )}
+              {viewingCert.sertifikat_fayli && typeof viewingCert.sertifikat_fayli === 'string' && viewingCert.sertifikat_fayli.trim() !== "" && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Sertifikat fayli</Label>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={viewingCert.sertifikat_fayli} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Faylni ko'rish
+                    </a>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Yaratilgan sana</Label>
+                  <p className="text-sm">
+                    {viewingCert.created_at ? new Date(viewingCert.created_at).toLocaleString('uz-UZ') : "-"}
+                  </p>
+                </div>
+                {viewingCert.department && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Kafedra</Label>
+                    <p className="text-sm">{viewingCert.department.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsViewDialogOpen(false)}>Yopish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

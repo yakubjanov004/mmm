@@ -3,64 +3,63 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { FileIcon, Search, MoreVertical, Download, Share2 } from "lucide-react"
-import { useState } from "react"
+import { FileIcon, Search, MoreVertical, Download, Trash2, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { filesAPI } from "@/lib/api"
+
+interface StoredFile {
+  id: number
+  file: string
+  url: string
+  size: number
+  owner: { id: number; user: { username: string; first_name: string; last_name: string }; department: string }
+  created_at: string
+}
 
 export default function TeacherFiles() {
+  const router = useRouter()
+  const [files, setFiles] = useState<StoredFile[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [subjectFilter, setSubjectFilter] = useState("")
-  const [yearFilter, setYearFilter] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState<number | null>(null)
 
-  const files = [
-    {
-      id: 1,
-      name: "Lecture_Notes_Week1.pdf",
-      size: "2.4 MB",
-      modified: "2 hours ago",
-      type: "pdf",
-      title: "Lecture Notes - Week 1",
-      subject: "Mathematics",
-      academicYear: "2024",
-    },
-    {
-      id: 2,
-      name: "Assignment_Template.docx",
-      size: "1.2 MB",
-      modified: "1 day ago",
-      type: "document",
-      title: "Assignment Template",
-      subject: "Physics",
-      academicYear: "2024",
-    },
-    {
-      id: 3,
-      name: "Class_Recording.mp4",
-      size: "512 MB",
-      modified: "3 days ago",
-      type: "video",
-      title: "Class Recording",
-      subject: "Computer Science",
-      academicYear: "2024",
-    },
-    {
-      id: 4,
-      name: "Syllabus_2024.pdf",
-      size: "856 KB",
-      modified: "1 week ago",
-      type: "pdf",
-      title: "Syllabus 2024",
-      subject: "Mathematics",
-      academicYear: "2024",
-    },
-  ]
+  useEffect(() => {
+    fetchFiles()
+  }, [])
+
+  const fetchFiles = async () => {
+    try {
+      setLoading(true)
+      const response = (await filesAPI.list()) as any
+      setFiles(Array.isArray(response) ? response : (response?.results || []))
+    } catch (error) {
+      console.error("Fayllarni yuklashda xatolik:", error)
+      setFiles([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bu faylni o'chirishni xohlaysizmi?")) return
+
+    try {
+      setDeleting(id)
+      await filesAPI.delete(id)
+      setFiles(files.filter((f) => f.id !== id))
+    } catch (error) {
+      console.error("Faylni o'chirishda xatolik:", error)
+      alert("Faylni o'chirishda xatolik")
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const filteredFiles = files.filter((file) => {
-    const searchMatch =
-      file.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      file.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const subjectMatch = !subjectFilter || file.subject.toLowerCase().includes(subjectFilter.toLowerCase())
-    const yearMatch = !yearFilter || file.academicYear === yearFilter
-    return searchMatch && subjectMatch && yearMatch
+    const searchMatch = file.file.toLowerCase().includes(searchQuery.toLowerCase())
+    return searchMatch
   })
 
   return (
@@ -68,88 +67,104 @@ export default function TeacherFiles() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">My Files</h1>
-          <p className="text-muted-foreground">Manage all your uploaded academic materials</p>
+          <h1 className="text-3xl font-bold">Mening Fayllarim</h1>
+          <p className="text-muted-foreground">Yuklangan akademik materiallarni boshqaring</p>
         </div>
-        <Button>Upload New File</Button>
+        <Link href="/teacher/upload">
+          <Button>Yangi Fayl Yuklash</Button>
+        </Link>
       </div>
 
-      {/* Search and Filter */}
+      {/* Search */}
       <Card>
-        <CardContent className="pt-6 space-y-3">
+        <CardContent className="pt-6">
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search files..."
+                placeholder="Fayllarni qidirish..."
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">Subject</label>
-              <Input
-                placeholder="Filter by subject..."
-                value={subjectFilter}
-                onChange={(e) => setSubjectFilter(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Academic Year</label>
-              <Input
-                placeholder="Filter by year..."
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value)}
-              />
-            </div>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Files Grid */}
+      {/* Files Grid or Loading */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredFiles.map((file) => (
-          <Card key={file.id} className="hover:shadow-lg transition-shadow flex flex-col">
-            <CardContent className="pt-6 flex-1 flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <FileIcon className="w-8 h-8 text-primary" />
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </div>
-              <h3 className="font-semibold mb-1 truncate">{file.title}</h3>
-              <p className="text-sm text-muted-foreground mb-1 truncate">{file.name}</p>
-
-              <div className="text-xs text-muted-foreground space-y-1 mb-4">
-                <p>
-                  <strong>Subject:</strong> {file.subject}
-                </p>
-                <p>
-                  <strong>Year:</strong> {file.academicYear}
-                </p>
-                <p>
-                  <strong>Size:</strong> {file.size}
-                </p>
-                <p>Modified {file.modified}</p>
-              </div>
-
-              <div className="flex gap-2 mt-auto">
-                <Button variant="ghost" size="sm" className="flex-1">
-                  <Download className="w-4 h-4 mr-1" />
-                  Download
-                </Button>
-                <Button variant="ghost" size="sm" className="flex-1">
-                  <Share2 className="w-4 h-4 mr-1" />
-                  Share
-                </Button>
-              </div>
+        {loading ? (
+          <div className="col-span-full flex justify-center items-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filteredFiles.length === 0 ? (
+          <Card className="col-span-full">
+            <CardContent className="pt-6 text-center text-muted-foreground">
+              <p>Hech fayl topilmadi</p>
+              <Link href="/teacher/upload">
+                <Button className="mt-4">Fayl Yuklash</Button>
+              </Link>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          filteredFiles.map((file) => {
+            const fileName = file.file.split("/").pop() || file.file
+            const fileExt = fileName.split(".").pop()?.toLowerCase()
+            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
+            const createdDate = new Date(file.created_at).toLocaleDateString("uz-UZ")
+
+            return (
+              <Card key={file.id} className="hover:shadow-lg transition-shadow flex flex-col">
+                <CardContent className="pt-6 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between mb-4">
+                    <FileIcon className="w-8 h-8 text-primary" />
+                    <Button variant="ghost" size="icon" disabled={deleting === file.id} onClick={() => handleDelete(file.id)}>
+                      {deleting === file.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <h3 className="font-semibold mb-1 truncate">{fileName}</h3>
+                  <p className="text-sm text-muted-foreground mb-1 truncate">
+                    {file.owner.user.first_name} {file.owner.user.last_name}
+                  </p>
+
+                  <div className="text-xs text-muted-foreground space-y-1 mb-4">
+                    <p>
+                      <strong>Hajmi:</strong> {fileSizeMB} MB
+                    </p>
+                    <p>
+                      <strong>Turri:</strong> {fileExt?.toUpperCase()}
+                    </p>
+                    <p>Saqlandi: {createdDate}</p>
+                  </div>
+
+                  <div className="flex gap-2 mt-auto">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const link = document.createElement("a")
+                        link.href = file.url
+                        link.download = fileName
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Yuklash
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })
+        )}
       </div>
     </div>
   )

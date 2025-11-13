@@ -197,6 +197,54 @@ class UserAdminReadSerializer(serializers.ModelSerializer):
         )
 
 
+class UpdateProfileSerializer(serializers.Serializer):
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    birth_date = serializers.DateField(required=False, allow_null=True)
+    scopus = serializers.URLField(required=False, allow_blank=True)
+    scholar = serializers.URLField(required=False, allow_blank=True)
+    research_id = serializers.CharField(required=False, allow_blank=True)
+    user_id = serializers.CharField(required=False, allow_blank=True, source="user_id_str")
+
+    def save(self):
+        user = self.context["request"].user
+        profile = user.profile
+        
+        # Update user fields
+        if "first_name" in self.validated_data:
+            user.first_name = self.validated_data["first_name"]
+        if "last_name" in self.validated_data:
+            user.last_name = self.validated_data["last_name"]
+        user.save()
+        
+        # Update profile fields
+        profile_fields = ["phone", "birth_date", "scopus", "scholar", "research_id", "user_id_str"]
+        for field in profile_fields:
+            if field in self.validated_data:
+                setattr(profile, field, self.validated_data[field])
+        profile.save()
+        
+        return profile
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True, min_length=6)
+
+    def validate_current_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Joriy parol noto'g'ri.")
+        return value
+
+    def save(self):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save()
+        return user
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
