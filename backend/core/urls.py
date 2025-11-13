@@ -10,7 +10,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from core.views import health_check
+from core.views import health_check, serve_media
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -33,7 +33,13 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Serve media files in production
+    path("media/<path:path>", serve_media, name="serve_media"),
+]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
