@@ -13,9 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { BookOpen, GraduationCap, Award, FileCode, Search, Filter, Users, BarChart3, Settings, Loader2 } from "lucide-react"
-import { getCurrentUserSync } from "@/lib/auth"
+import { getCurrentUserSync, filterRecordsByRole } from "@/lib/auth"
 import { worksAPI, usersAPI } from "@/lib/api"
-import { 
+import {
   mapBackendMethodicalWorkToFrontend,
   mapBackendResearchWorkToFrontend,
   mapBackendCertificateToFrontend,
@@ -26,13 +26,15 @@ import type { MethodicalWork, ResearchWork, Certificate, SoftwareCertificate } f
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import Link from "next/link"
 import { toast } from "sonner"
+import { useTranslation } from "@/lib/i18n"
 
 export default function DashboardPage() {
-  const currentUser = getCurrentUserSync()
+  const { t } = useTranslation()
+  const [currentUser, setCurrentUser] = useState<User | null>(getCurrentUserSync())
   const [yearFilter, setYearFilter] = useState<string>("")
   const [typeFilter, setTypeFilter] = useState<string>("")
   const [languageFilter, setLanguageFilter] = useState<string>("")
-  
+
   // Data states
   const [methodicalWorks, setMethodicalWorks] = useState<MethodicalWork[]>([])
   const [researchWorks, setResearchWorks] = useState<ResearchWork[]>([])
@@ -40,15 +42,31 @@ export default function DashboardPage() {
   const [softwareCertificates, setSoftwareCertificates] = useState<SoftwareCertificate[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [roleChanged, setRoleChanged] = useState(0) // Force re-render when role changes
   const hasFetchedRef = useRef(false)
+
+  // Listen for role changes and update current user
+  useEffect(() => {
+    const handleRoleChange = () => {
+      // Update current user to reflect role change
+      setCurrentUser(getCurrentUserSync())
+      // Reset fetch flag to allow re-fetch
+      hasFetchedRef.current = false
+      setRoleChanged(prev => prev + 1)
+    }
+    window.addEventListener("roleChanged", handleRoleChange as EventListener)
+    return () => {
+      window.removeEventListener("roleChanged", handleRoleChange as EventListener)
+    }
+  }, [])
 
   // Fetch data from API
   useEffect(() => {
     if (hasFetchedRef.current) return
     if (!currentUser) return
-    
+
     hasFetchedRef.current = true
-    
+
     const fetchData = async () => {
       setIsLoading(true)
       try {
@@ -58,28 +76,34 @@ export default function DashboardPage() {
           worksAPI.research.list().catch(() => ({ results: [] })),
           worksAPI.certificates.list().catch(() => ({ results: [] })),
           worksAPI.softwareCertificates.list().catch(() => ({ results: [] })),
-          currentUser.roli === "Admin" ? usersAPI.list().catch(() => []) : Promise.resolve([]),
+          // Load users for all roles to display author names
+          usersAPI.list().catch(() => []),
         ])
 
         // Map backend data to frontend format
-        setMethodicalWorks(
-          ((methodicalData as any).results || methodicalData || []).map(mapBackendMethodicalWorkToFrontend)
-        )
-        setResearchWorks(
-          ((researchData as any).results || researchData || []).map(mapBackendResearchWorkToFrontend)
-        )
-        setCertificates(
-          ((certificatesData as any).results || certificatesData || []).map(mapBackendCertificateToFrontend)
-        )
-        setSoftwareCertificates(
-          ((softwareData as any).results || softwareData || []).map(mapBackendSoftwareCertificateToFrontend)
-        )
-        
-        // Map users data properly
-        const usersArray = Array.isArray(usersData) 
-          ? usersData 
-          : ((usersData as any)?.results || [])
-        const mappedUsers = usersArray.map((u: any) => {
+        const methodicalList = ((methodicalData as any).results || methodicalData || []).map(mapBackendMethodicalWorkToFrontend)
+        const researchList = ((researchData as any).results || researchData || []).map(mapBackendResearchWorkToFrontend)
+        const certificatesList = ((certificatesData as any).results || certificatesData || []).map(mapBackendCertificateToFrontend)
+        const softwareList = ((softwareData as any).results || softwareData || []).map(mapBackendSoftwareCertificateToFrontend)
+
+        // Filter by role
+        setMethodicalWorks(filterRecordsByRole(methodicalList, currentUser))
+        setResearchWorks(filterRecordsByRole(researchList, currentUser))
+        setCertificates(filterRecordsByRole(certificatesList, currentUser))
+        setSoftwareCertificates(filterRecordsByRole(softwareList, currentUser))
+
+        // Map users data properly - filter out admin and djangoadmin users
+        const usersArray = Array.isArray(usersData)
+          ? usersData
+          : ((usersData as any)?.results || usersData || [])
+        const mappedUsers = usersArray
+          .filter((u: any) => {
+            const username = (u.username || u.profile?.username || "").toLowerCase()
+            const role = (u.profile?.role || "TEACHER").toUpperCase()
+            // Exclude admin users and djangoadmin
+            return username !== "admin" && username !== "djangoadmin" && role !== "ADMIN"
+          })
+          .map((u: any) => {
           const backendUserData = {
             id: u.id,
             username: u.username || u.profile?.username || "",
@@ -100,21 +124,21 @@ export default function DashboardPage() {
         })
         setUsers(mappedUsers)
       } catch (error: any) {
-        toast.error("Ma'lumotlarni yuklashda xatolik: " + (error.message || "Noma'lum xatolik"))
+        toast.error(t("dashboard.loadError") + ": " + (error.message || t("common.error")))
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchData()
-  }, [currentUser])
+  }, [currentUser, roleChanged, t])
 
   // Get all recent items
   const recentItems = useMemo(() => {
     const allItems = [
       ...methodicalWorks.map((item) => ({
         id: item.id,
-        type: "Uslubiy ish",
+        type: t("dashboard.methodicalWork"),
         title: item.nomi,
         year: item.yili,
         createdAt: item.created_at,
@@ -122,7 +146,7 @@ export default function DashboardPage() {
       })),
       ...researchWorks.map((item) => ({
         id: item.id,
-        type: "Ilmiy ish",
+        type: t("dashboard.researchWork"),
         title: item.ilmiy_ish_nomi,
         year: item.yili,
         createdAt: item.created_at,
@@ -130,7 +154,7 @@ export default function DashboardPage() {
       })),
       ...certificates.map((item) => ({
         id: item.id,
-        type: "Sertifikat",
+        type: t("dashboard.certificate"),
         title: item.nomi,
         year: item.yili,
         createdAt: item.created_at,
@@ -138,7 +162,7 @@ export default function DashboardPage() {
       })),
       ...softwareCertificates.map((item) => ({
         id: item.id,
-        type: "Dasturiy guvohnoma",
+        type: t("dashboard.softwareCertificate"),
         title: item.nomi,
         year: item.tasdiqlangan_sana.split("-")[0],
         createdAt: item.created_at,
@@ -165,25 +189,18 @@ export default function DashboardPage() {
   }, [recentItems, yearFilter, typeFilter])
 
   const getTypeBadgeVariant = (type: string) => {
-    switch (type) {
-      case "Uslubiy ish":
-        return "default"
-      case "Ilmiy ish":
-        return "secondary"
-      case "Sertifikat":
-        return "outline"
-      case "Dasturiy guvohnoma":
-        return "destructive"
-      default:
-        return "default"
-    }
+    if (type === t("dashboard.methodicalWork")) return "default"
+    if (type === t("dashboard.researchWork")) return "secondary"
+    if (type === t("dashboard.certificate")) return "outline"
+    if (type === t("dashboard.softwareCertificate")) return "destructive"
+    return "default"
   }
 
   // Admin dashboard shows system stats, not work-related stats
   if (currentUser?.roli === "Admin") {
     const totalUsersCount = users.length
     const activeUsers = users.filter((u: any) => u.roli !== "Admin").length
-    
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -191,22 +208,22 @@ export default function DashboardPage() {
         </div>
       )
     }
-    
+
     return (
       <div className="space-y-6">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="/dashboard">Dashboard</Link>
+                <Link href="/dashboard">{t("dashboard.title")}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Tizim umumiy holati va nazorat</p>
+          <h1 className="text-3xl font-bold">{t("dashboard.title")}</h1>
+          <p className="text-muted-foreground">{t("dashboard.subtitle")}</p>
         </div>
 
         {/* Admin Stats Cards */}
@@ -215,12 +232,12 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Jami foydalanuvchilar
+                {t("dashboard.totalUsers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{totalUsersCount}</p>
-              <p className="text-xs text-muted-foreground">Barcha ro'yxatdan o'tganlar</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.allRegistered")}</p>
             </CardContent>
           </Card>
 
@@ -228,12 +245,12 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Faol foydalanuvchilar
+                {t("dashboard.activeUsers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{activeUsers >= 0 ? activeUsers : 0}</p>
-              <p className="text-xs text-muted-foreground">O'qituvchilar va mudirlar</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.teachersAndHeads")}</p>
             </CardContent>
           </Card>
 
@@ -241,12 +258,12 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
-                Tizim holati
+                {t("dashboard.systemStatus")}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold text-green-600">Faol</p>
-              <p className="text-xs text-muted-foreground">Barcha tizimlar ishlamoqda</p>
+              <p className="text-2xl font-bold text-green-600">{t("dashboard.statusActive")}</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.allSystemsRunning")}</p>
             </CardContent>
           </Card>
         </div>
@@ -254,27 +271,27 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle>Tezkor amallar</CardTitle>
-            <CardDescription>Tizim boshqaruvi uchun tezkor kirishlar</CardDescription>
+            <CardTitle>{t("dashboard.quickActions")}</CardTitle>
+            <CardDescription>{t("dashboard.quickActionsDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Button asChild className="w-full">
                 <Link href="/users">
                   <Users className="w-4 h-4 mr-2" />
-                  Foydalanuvchilarni boshqarish
+                  {t("dashboard.manageUsers")}
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href="/statistics">
                   <BarChart3 className="w-4 h-4 mr-2" />
-                  Statistika
+                  {t("dashboard.statistics")}
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href="/settings">
                   <Settings className="w-4 h-4 mr-2" />
-                  Sozlamalar
+                  {t("dashboard.settings")}
                 </Link>
               </Button>
             </div>
@@ -305,11 +322,11 @@ export default function DashboardPage() {
       </Breadcrumb>
 
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold">{t("dashboard.title")}</h1>
         <p className="text-muted-foreground">
           {currentUser?.roli === "Head of Department"
-            ? "Kafedra statistikasi va faoliyat"
-            : "Sizning ishlaringizning umumiy holati"}
+            ? t("dashboard.departmentStats")
+            : t("dashboard.yourWorksOverview")}
         </p>
       </div>
 
@@ -319,12 +336,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
-              Uslubiy ishlar
+              {t("dashboard.methodicalWorks")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{methodicalWorks.length}</p>
-            <p className="text-xs text-muted-foreground">Jami yozuvlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -332,12 +349,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <GraduationCap className="w-4 h-4" />
-              Ilmiy ishlar
+              {t("dashboard.researchWorks")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{researchWorks.length}</p>
-            <p className="text-xs text-muted-foreground">Jami yozuvlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -345,12 +362,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Award className="w-4 h-4" />
-              Sertifikatlar
+              {t("dashboard.certificates")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{certificates.length}</p>
-            <p className="text-xs text-muted-foreground">Jami yozuvlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -358,12 +375,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileCode className="w-4 h-4" />
-              Dasturiy guvohnomalar
+              {t("dashboard.softwareCertificates")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{softwareCertificates.length}</p>
-            <p className="text-xs text-muted-foreground">Jami yozuvlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
       </div>
@@ -373,16 +390,16 @@ export default function DashboardPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>So'ngi qo'shilganlar</CardTitle>
-              <CardDescription>Oxirgi 5 ta yozuv</CardDescription>
+              <CardTitle>{t("dashboard.recentItems")}</CardTitle>
+              <CardDescription>{t("dashboard.last5Records")}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Select value={yearFilter || "all"} onValueChange={(value) => setYearFilter(value === "all" ? "" : value)}>
                 <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Yil" />
+                  <SelectValue placeholder={t("dashboard.year")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Barcha yillar</SelectItem>
+                  <SelectItem value="all">{t("dashboard.allYears")}</SelectItem>
                   {Array.from(new Set(recentItems.map((item) => item.year))).map((year) => (
                     <SelectItem key={year} value={year}>
                       {year}
@@ -392,14 +409,14 @@ export default function DashboardPage() {
               </Select>
               <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Tur" />
+                  <SelectValue placeholder={t("dashboard.type")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Barcha turlar</SelectItem>
-                  <SelectItem value="Uslubiy ish">Uslubiy ish</SelectItem>
-                  <SelectItem value="Ilmiy ish">Ilmiy ish</SelectItem>
-                  <SelectItem value="Sertifikat">Sertifikat</SelectItem>
-                  <SelectItem value="Dasturiy guvohnoma">Dasturiy guvohnoma</SelectItem>
+                  <SelectItem value="all">{t("dashboard.allTypes")}</SelectItem>
+                  <SelectItem value={t("dashboard.methodicalWork")}>{t("dashboard.methodicalWork")}</SelectItem>
+                  <SelectItem value={t("dashboard.researchWork")}>{t("dashboard.researchWork")}</SelectItem>
+                  <SelectItem value={t("dashboard.certificate")}>{t("dashboard.certificate")}</SelectItem>
+                  <SelectItem value={t("dashboard.softwareCertificate")}>{t("dashboard.softwareCertificate")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -408,7 +425,7 @@ export default function DashboardPage() {
         <CardContent>
           {filteredRecentItems.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Hali yozuv yo'q
+              {t("dashboard.noRecordsYet")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -421,11 +438,11 @@ export default function DashboardPage() {
                     <Badge variant={getTypeBadgeVariant(item.type)}>{item.type}</Badge>
                     <div>
                       <p className="font-medium">{item.title}</p>
-                      <p className="text-sm text-muted-foreground">{item.year} yil</p>
+                      <p className="text-sm text-muted-foreground">{item.year} {t("dashboard.yearLabel")}</p>
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href={item.link}>Ko'rish</Link>
+                    <Link href={item.link}>{t("dashboard.view")}</Link>
                   </Button>
                 </div>
               ))}

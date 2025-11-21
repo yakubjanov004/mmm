@@ -36,9 +36,11 @@ import { getCurrentUserSync } from "@/lib/auth"
 import { filesAPI, usersAPI } from "@/lib/api"
 import { toast } from "sonner"
 import Link from "next/link"
+import { useTranslation } from "@/lib/i18n"
 import type { File, User } from "@/lib/types"
 
 export default function FilesPage() {
+  const { t } = useTranslation()
   const currentUser = getCurrentUserSync()
   const [searchQuery, setSearchQuery] = useState("")
   const [userFilter, setUserFilter] = useState<string>("")
@@ -57,15 +59,15 @@ export default function FilesPage() {
                   <FolderOpen className="w-12 h-12 text-destructive" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">403: Kirish huquqi yo'q</CardTitle>
+              <CardTitle className="text-2xl">{t("errors.accessDenied")}</CardTitle>
               <CardDescription className="text-base mt-2">
-                Admin foydalanuvchilar fayllar sahifasiga kirishlari mumkin emas.
+                {t("errors.onlyTeacherAndHodFiles")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" asChild>
-                  <Link href="/dashboard">Dashboardga qaytish</Link>
+                  <Link href="/dashboard">{t("errors.backToDashboard")}</Link>
                 </Button>
               </div>
             </CardContent>
@@ -85,19 +87,19 @@ export default function FilesPage() {
   useEffect(() => {
     if (hasFetchedRef.current) return
     if (!currentUser) return
-    
+
     hasFetchedRef.current = true
-    
+
     const fetchData = async () => {
       setIsLoading(true)
       try {
         const [filesData, usersData] = await Promise.all([
           filesAPI.list().catch(() => ({ results: [] })),
-          usersAPI.list().catch(() => []),
+          currentUser?.roli === "Admin" ? usersAPI.list().catch(() => []) : Promise.resolve([]),
         ])
 
         // Map backend files to frontend format
-        const filesList = (filesData.results || filesData || []).map((f: any) => ({
+        const filesList = ((filesData as any).results || filesData || []).map((f: any) => ({
           id: f.id,
           fayl_url: f.url || f.file || "",
           foydalanuvchi_id: f.owner?.id || f.owner?.user?.id || 0,
@@ -112,31 +114,40 @@ export default function FilesPage() {
           const deptUserIds = (Array.isArray(usersData) ? usersData : [])
             .filter((u: any) => u.profile?.department?.id === currentUser.kafedra_id)
             .map((u: any) => u.id)
-          visibleFilesList = filesList.filter((f) => deptUserIds.includes(f.foydalanuvchi_id))
+          visibleFilesList = filesList.filter((f: File) => deptUserIds.includes(f.foydalanuvchi_id))
         } else {
           // Teacher sees only own files
-          visibleFilesList = filesList.filter((f) => f.foydalanuvchi_id === currentUser.id)
+          visibleFilesList = filesList.filter((f: File) => f.foydalanuvchi_id === currentUser.id)
         }
 
         setFiles(visibleFilesList)
-        setUsers(Array.isArray(usersData) ? usersData.map((u: any) => ({
-          id: u.id,
-          ism: u.profile?.first_name || "",
-          familiya: u.profile?.last_name || "",
-          otasining_ismi: "",
-          tugilgan_yili: "",
-          lavozimi: u.profile?.position || undefined,
-          telefon_raqami: u.profile?.phone || "",
-          roli: u.profile?.role === "ADMIN" ? "Admin" : u.profile?.role === "HOD" ? "Head of Department" : "Teacher",
-          roli_internal: u.profile?.role || "TEACHER",
-          user_id: u.profile?.user_id || "",
-          username: u.username || "",
-          password: "",
-          kafedra_id: u.profile?.department?.id,
-          department: u.profile?.department?.name,
-        })) : [])
+        // Filter out admin and djangoadmin users
+        const rawUsers = (usersData as any)?.results || usersData || []
+        setUsers(Array.isArray(rawUsers) ? rawUsers
+          .filter((u: any) => {
+            const username = (u.username || u.profile?.username || "").toLowerCase()
+            const role = (u.profile?.role || "TEACHER").toUpperCase()
+            // Exclude admin users and djangoadmin
+            return username !== "admin" && username !== "djangoadmin" && role !== "ADMIN"
+          })
+          .map((u: any) => ({
+            id: u.id,
+            ism: u.profile?.first_name || "",
+            familiya: u.profile?.last_name || "",
+            otasining_ismi: "",
+            tugilgan_yili: "",
+            lavozimi: u.profile?.position || undefined,
+            telefon_raqami: u.profile?.phone || "",
+            roli: u.profile?.role === "ADMIN" ? "Admin" : u.profile?.role === "HOD" ? "Head of Department" : "Teacher",
+            roli_internal: u.profile?.role || "TEACHER",
+            user_id: u.profile?.user_id || "",
+            username: u.username || "",
+            password: "",
+            kafedra_id: u.profile?.department?.id,
+            department: u.profile?.department?.name,
+          })) : [])
       } catch (error: any) {
-        toast.error("Ma'lumotlarni yuklashda xatolik: " + (error.message || "Noma'lum xatolik"))
+        toast.error(t("errors.loadDataError") + ": " + (error.message || t("errors.unknownError")))
       } finally {
         setIsLoading(false)
       }
@@ -172,11 +183,11 @@ export default function FilesPage() {
   const handleDelete = async (id: number) => {
     try {
       await filesAPI.delete(id)
-      toast.success("Fayl o'chirildi")
-      
+      toast.success(t("files.deleted"))
+
       // Refresh data
       const filesData = await filesAPI.list()
-      const filesList = (filesData.results || filesData || []).map((f: any) => ({
+      const filesList = ((filesData as any).results || filesData || []).map((f: any) => ({
         id: f.id,
         fayl_url: f.url || f.file || "",
         foydalanuvchi_id: f.owner?.id || f.owner?.user?.id || 0,
@@ -184,22 +195,22 @@ export default function FilesPage() {
         fayl_hajmi: f.size ? `${(f.size / (1024 * 1024)).toFixed(2)} MB` : "",
         created_at: f.created_at || "",
       }))
-      
+
       // Filter by role
       let visibleFilesList = filesList
       if (currentUser?.roli === "Head of Department") {
         const deptUserIds = users
           .filter((u) => u.kafedra_id === currentUser.kafedra_id)
           .map((u) => u.id)
-        visibleFilesList = filesList.filter((f) => deptUserIds.includes(f.foydalanuvchi_id))
+        visibleFilesList = filesList.filter((f: File) => deptUserIds.includes(f.foydalanuvchi_id))
       } else if (currentUser) {
-        visibleFilesList = filesList.filter((f) => f.foydalanuvchi_id === currentUser.id)
+        visibleFilesList = filesList.filter((f: File) => f.foydalanuvchi_id === currentUser.id)
       }
-      
+
       setFiles(visibleFilesList)
       setDeleteId(null)
     } catch (error: any) {
-      toast.error("Xatolik: " + (error.message || "Noma'lum xatolik"))
+      toast.error(t("errors.error") + ": " + (error.message || t("errors.unknownError")))
     }
   }
 
@@ -210,18 +221,18 @@ export default function FilesPage() {
       try {
         const formData = new FormData()
         formData.append("file", file)
-        
+
         await filesAPI.create(formData)
         const sizeInMB = (file.size / (1024 * 1024)).toFixed(2)
-        toast.success(`Fayl yuklandi: ${file.name} (${sizeInMB} MB)`)
+        toast.success(`${t("files.uploaded")}: ${file.name} (${sizeInMB} MB)`)
       } catch (error: any) {
-        toast.error(`Fayl yuklashda xatolik: ${file.name} - ${error.message || "Noma'lum xatolik"}`)
+        toast.error(`${t("files.uploadError")}: ${file.name} - ${error.message || t("errors.unknownError")}`)
       }
     }
-    
+
     // Refresh data
     const filesData = await filesAPI.list()
-    const filesList = (filesData.results || filesData || []).map((f: any) => ({
+    const filesList = ((filesData as any).results || filesData || []).map((f: any) => ({
       id: f.id,
       fayl_url: f.url || f.file || "",
       foydalanuvchi_id: f.owner?.id || f.owner?.user?.id || 0,
@@ -229,18 +240,18 @@ export default function FilesPage() {
       fayl_hajmi: f.size ? `${(f.size / (1024 * 1024)).toFixed(2)} MB` : "",
       created_at: f.created_at || "",
     }))
-    
+
     // Filter by role
     let visibleFilesList = filesList
     if (currentUser?.roli === "Head of Department") {
       const deptUserIds = users
         .filter((u) => u.kafedra_id === currentUser.kafedra_id)
         .map((u) => u.id)
-      visibleFilesList = filesList.filter((f) => deptUserIds.includes(f.foydalanuvchi_id))
+      visibleFilesList = filesList.filter((f: File) => deptUserIds.includes(f.foydalanuvchi_id))
     } else if (currentUser) {
-      visibleFilesList = filesList.filter((f) => f.foydalanuvchi_id === currentUser.id)
+      visibleFilesList = filesList.filter((f: File) => f.foydalanuvchi_id === currentUser.id)
     }
-    
+
     setFiles(visibleFilesList)
   }
 
@@ -265,7 +276,7 @@ export default function FilesPage() {
 
   const getUserName = (userId: number) => {
     const user = users.find((u) => u.id === userId)
-    return user ? `${user.ism} ${user.familiya}` : `User ${userId}`
+    return user ? `${user.ism} ${user.familiya}` : `${t("files.user")} ${userId}`
   }
 
   const availableUsers = useMemo(() => {
@@ -282,38 +293,37 @@ export default function FilesPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/dashboard">{t("dashboard.title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbItem>Fayllar</BreadcrumbItem>
+          <BreadcrumbItem>{t("menu.files")}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div>
-        <h1 className="text-3xl font-bold">Fayllar</h1>
-        <p className="text-muted-foreground">Fayllar ro'yxati va yuklash</p>
+        <h1 className="text-3xl font-bold">{t("files.title")}</h1>
+        <p className="text-muted-foreground">{t("files.subtitle")}</p>
       </div>
 
       {/* Upload Area */}
       <Card>
         <CardHeader>
-          <CardTitle>Fayl yuklash</CardTitle>
-          <CardDescription>Fayllarni bu yerga sudrab tashlang yoki tanlang</CardDescription>
+          <CardTitle>{t("files.upload")}</CardTitle>
+          <CardDescription>{t("files.uploadDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragging
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/25 hover:border-primary/50"
-            }`}
+              }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
             <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-sm text-muted-foreground mb-4">
-              Fayllarni bu yerga sudrab tashlang yoki
+              {t("files.dragAndDrop")}
             </p>
             <Input
               type="file"
@@ -328,16 +338,16 @@ export default function FilesPage() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Filterlar</CardTitle>
+          <CardTitle>{t("files.filters")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Qidiruv</Label>
+              <Label>{t("files.search")}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Fayl nomi bo'yicha qidirish..."
+                  placeholder={t("files.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -346,13 +356,13 @@ export default function FilesPage() {
             </div>
             {currentUser?.roli === "Head of Department" && (
               <div className="space-y-2">
-                <Label>Foydalanuvchi</Label>
+                <Label>{t("files.user")}</Label>
                 <Select value={userFilter || "all"} onValueChange={(value) => setUserFilter(value === "all" ? "" : value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Barcha foydalanuvchilar" />
+                    <SelectValue placeholder={t("files.allUsers")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Barcha foydalanuvchilar</SelectItem>
+                    <SelectItem value="all">{t("files.allUsers")}</SelectItem>
                     {availableUsers.map((user) => {
                       if (!user) return null
                       return (
@@ -372,8 +382,8 @@ export default function FilesPage() {
       {/* Files Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Ro'yxat</CardTitle>
-          <CardDescription>{filteredFiles.length} ta fayl topildi</CardDescription>
+          <CardTitle>{t("files.list")}</CardTitle>
+          <CardDescription>{filteredFiles.length} {t("files.found")}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -382,18 +392,18 @@ export default function FilesPage() {
             </div>
           ) : filteredFiles.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Hali fayl yo'q — Yuklash tugmasini bosing
+              {t("files.noFiles")}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Fayl nomi</TableHead>
-                  <TableHead>Fayl URL</TableHead>
-                  <TableHead>Foydalanuvchi</TableHead>
-                  <TableHead>Hajmi</TableHead>
-                  <TableHead>Amallar</TableHead>
+                  <TableHead>{t("files.tableHeaders.id")}</TableHead>
+                  <TableHead>{t("files.tableHeaders.fileName")}</TableHead>
+                  <TableHead>{t("files.tableHeaders.fileUrl")}</TableHead>
+                  <TableHead>{t("files.tableHeaders.user")}</TableHead>
+                  <TableHead>{t("files.tableHeaders.size")}</TableHead>
+                  <TableHead>{t("files.tableHeaders.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -449,15 +459,15 @@ export default function FilesPage() {
       <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>O'chirishni tasdiqlaysizmi?</AlertDialogTitle>
+            <AlertDialogTitle>{t("files.deleteConfirm")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu amalni qaytarib bo'lmaydi. Fayl butunlay o'chiriladi.
+              {t("files.deleteDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)}>
-              O'chirish
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

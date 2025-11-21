@@ -2,6 +2,7 @@
 Management command to create the first admin user.
 Usage: python manage.py create_admin
 """
+import os
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from accounts.models import Department, Profile
@@ -16,20 +17,20 @@ class Command(BaseCommand):
         parser.add_argument(
             "--username",
             type=str,
-            default="admin",
-            help="Username for admin user (default: admin)",
+            default=os.getenv("ADMIN_USERNAME", "admin"),
+            help="Username for admin user (default: from ADMIN_USERNAME env or 'admin')",
         )
         parser.add_argument(
             "--password",
             type=str,
-            default="admin123",
-            help="Password for admin user (default: admin123)",
+            default=os.getenv("ADMIN_PASSWORD", "admin123"),
+            help="Password for admin user (default: from ADMIN_PASSWORD env or 'admin123')",
         )
         parser.add_argument(
             "--email",
             type=str,
-            default="admin@example.com",
-            help="Email for admin user (default: admin@example.com)",
+            default=os.getenv("ADMIN_EMAIL", "admin@example.com"),
+            help="Email for admin user (default: from ADMIN_EMAIL env or 'admin@example.com')",
         )
         parser.add_argument(
             "--first-name",
@@ -43,6 +44,11 @@ class Command(BaseCommand):
             default="User",
             help="Last name for admin user (default: User)",
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Force update existing admin user",
+        )
 
     def handle(self, *args, **options):
         username = options["username"]
@@ -50,11 +56,22 @@ class Command(BaseCommand):
         email = options["email"]
         first_name = options["first_name"]
         last_name = options["last_name"]
+        force = options["force"]
 
         # Check if user with this username already exists
         if User.objects.filter(username=username).exists():
-            user = User.objects.get(username=username)
+            if not force:
+                user = User.objects.get(username=username)
+                # Check if already admin
+                if user.profile.role == Profile.Roles.ADMIN:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Admin user '{username}' already exists! Use --force to update."
+                        )
+                    )
+                    return
             # Update existing user to be admin
+            user = User.objects.get(username=username)
             profile = user.profile
             profile.role = Profile.Roles.ADMIN
             if not profile.department:
@@ -65,6 +82,9 @@ class Command(BaseCommand):
                 profile.department = department
             profile.save()
             user.set_password(password)
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
             user.save()
             self.stdout.write(
                 self.style.SUCCESS(
@@ -76,9 +96,9 @@ class Command(BaseCommand):
             return
 
         # Check if admin user already exists
-        if User.objects.filter(profile__role=Profile.Roles.ADMIN).exists():
+        if User.objects.filter(profile__role=Profile.Roles.ADMIN).exists() and not force:
             self.stdout.write(
-                self.style.WARNING("Admin user already exists!")
+                self.style.WARNING("Admin user already exists! Use --force to create another.")
             )
             return
 

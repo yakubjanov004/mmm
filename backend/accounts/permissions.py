@@ -30,5 +30,12 @@ class IsHOD(BasePermission):
 class IsTeacher(BasePermission):
     def has_permission(self, request, view) -> bool:
         profile = _get_profile(request)
-        return bool(profile and profile.role == Profile.Roles.TEACHER)
+        if not profile:
+            return False
+        # HOD also has TEACHER role access
+        return bool(
+            profile.role == Profile.Roles.TEACHER
+            or profile.role == Profile.Roles.HOD
+            or Profile.Roles.TEACHER in profile.available_roles
+        )
 

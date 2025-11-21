@@ -20,12 +20,13 @@ import { getCurrentUserSync } from "@/lib/auth"
 import { authAPI } from "@/lib/api"
 import { toast } from "sonner"
 import Link from "next/link"
+import { useTranslation } from "@/lib/i18n"
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
+  const { t, language, changeLanguage } = useTranslation()
   const [mounted, setMounted] = useState(false)
   const currentUser = getCurrentUserSync()
-  const [language, setLanguage] = useState("uz")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -36,29 +37,39 @@ export default function SettingsPage() {
     setMounted(true)
   }, [])
 
+  // Handle language change
+  const handleLanguageChange = (newLang: string) => {
+    const lang = newLang as "uz" | "uzc" | "ru" | "en"
+    changeLanguage(lang)
+    // Show success message - UI will update automatically with new language
+    setTimeout(() => {
+      toast.success(t("settings.languageChanged"))
+    }, 150)
+  }
+
   const handlePasswordChange = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error("Barcha maydonlar to'ldirilishi kerak")
+      toast.error(t("settings.allFieldsRequired"))
       return
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Yangi parol va tasdiqlash paroli mos kelmaydi")
+      toast.error(t("settings.passwordsDoNotMatch"))
       return
     }
     if (newPassword.length < 6) {
-      toast.error("Parol kamida 6 belgidan iborat bo'lishi kerak")
+      toast.error(t("settings.passwordMinLength"))
       return
     }
 
     setIsChangingPassword(true)
     try {
       await authAPI.changePassword(currentPassword, newPassword)
-      toast.success("Parol muvaffaqiyatli o'zgartirildi")
+      toast.success(t("settings.passwordChanged"))
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (error: any) {
-      toast.error(error.message || "Parolni o'zgartirishda xatolik yuz berdi")
+      toast.error(error.message || t("settings.passwordChangeError"))
     } finally {
       setIsChangingPassword(false)
     }
@@ -70,16 +81,16 @@ export default function SettingsPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/dashboard">{t("dashboard.title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbItem>Settings</BreadcrumbItem>
+          <BreadcrumbItem>{t("settings.title")}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Tizim sozlamalari</p>
+        <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
+        <p className="text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       {/* Theme Settings */}
@@ -91,16 +102,16 @@ export default function SettingsPage() {
             ) : (
               <Sun className="w-5 h-5" />
             )}
-            Tema
+            {t("settings.theme")}
           </CardTitle>
-          <CardDescription>Ilova mavzusini o'zgartiring</CardDescription>
+          <CardDescription>{t("settings.themeDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Qora tema</Label>
+              <Label>{t("settings.darkTheme")}</Label>
               <p className="text-sm text-muted-foreground">
-                Qora mavzuni yoqish yoki o'chirish
+                {t("settings.darkThemeDesc")}
               </p>
             </div>
             <Switch
@@ -117,26 +128,24 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="w-5 h-5" />
-            Til
+            {t("settings.language")}
           </CardTitle>
-          <CardDescription>Ilova tilini tanlang</CardDescription>
+          <CardDescription>{t("settings.languageDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <Label htmlFor="language">Til</Label>
-            <Select value={language} onValueChange={setLanguage}>
+            <Label htmlFor="language">{t("settings.language")}</Label>
+            <Select value={language} onValueChange={handleLanguageChange}>
               <SelectTrigger id="language">
-                <SelectValue />
+                <SelectValue placeholder={t("settings.selectLanguage")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="uz">O'zbek</SelectItem>
-                <SelectItem value="ru">Русский</SelectItem>
-                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="uz">{t("languages.uzbek")}</SelectItem>
+                <SelectItem value="uzc">{t("languages.uzbekCyrillic")}</SelectItem>
+                <SelectItem value="ru">{t("languages.russian")}</SelectItem>
+                <SelectItem value="en">{t("languages.english")}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Demo rejim: Til tanlash faqat ko'rsatkich uchun
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -146,68 +155,44 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lock className="w-5 h-5" />
-            Parolni almashtirish
+            {t("settings.changePassword")}
           </CardTitle>
-          <CardDescription>Hisobingiz parolini yangilang</CardDescription>
+          <CardDescription>{t("settings.changePasswordDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="current-password">Joriy parol</Label>
+            <Label htmlFor="current-password">{t("settings.currentPassword")}</Label>
             <Input
               id="current-password"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Joriy parolni kiriting"
+              placeholder={t("settings.enterCurrentPassword")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="new-password">Yangi parol</Label>
+            <Label htmlFor="new-password">{t("settings.newPassword")}</Label>
             <Input
               id="new-password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Yangi parolni kiriting"
+              placeholder={t("settings.enterNewPassword")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Parolni tasdiqlash</Label>
+            <Label htmlFor="confirm-password">{t("settings.confirmPassword")}</Label>
             <Input
               id="confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Yangi parolni qayta kiriting"
+              placeholder={t("settings.reEnterNewPassword")}
             />
           </div>
           <Button onClick={handlePasswordChange} disabled={isChangingPassword}>
-            {isChangingPassword ? "Kuting..." : "Parolni o'zgartirish"}
+            {isChangingPassword ? t("settings.changing") : t("settings.changePasswordButton")}
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Account Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Hisob ma'lumotlari</CardTitle>
-          <CardDescription>Hisobingizning asosiy ma'lumotlari</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                value={currentUser ? `${currentUser.user_id}@university.edu` : ""}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Roli</Label>
-              <Input value={currentUser?.roli || ""} disabled className="bg-muted" />
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

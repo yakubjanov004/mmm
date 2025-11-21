@@ -35,6 +35,24 @@ function parseAcademicYear(yearStr: string): string {
 }
 
 // Backend API response types
+interface BackendProfileName {
+  language: "uz" | "uzc" | "ru" | "en"
+  first_name: string
+  last_name: string
+  father_name?: string
+}
+
+interface BackendEmployment {
+  id: number
+  employment_type: "MAIN" | "INTERNAL" | "EXTERNAL"
+  rate: string
+  department?: { id: number; name: string } | null
+  position?: { id: number; name: string } | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 interface BackendUser {
   id: number
   username: string
@@ -42,14 +60,24 @@ interface BackendUser {
   last_name: string
   email?: string
   role: "ADMIN" | "HOD" | "TEACHER"
+  available_roles?: string[]
   department?: { id: number; name: string } | null
   position?: string | null
   phone?: string
   birth_date?: string
+  avatar?: string | null
   scopus?: string
   scholar?: string
   research_id?: string
   user_id?: string
+  // Multi-language names
+  names?: BackendProfileName[]
+  full_name?: string
+  full_name_uzc?: string
+  full_name_ru?: string
+  full_name_en?: string
+  // Employments
+  employments?: BackendEmployment[]
 }
 
 interface BackendMethodicalWork {
@@ -232,13 +260,26 @@ function mapBackendSoftwareCertificateTypeToFrontend(type: string): SoftwareCert
 
 // User mapping
 export function mapBackendUserToFrontend(backend: BackendUser): User {
-  const nameParts = (backend.first_name || "").split(" ")
-  const ism = nameParts[0] || ""
-  const otasining_ismi = nameParts.slice(1).join(" ") || ""
-  const familiya = backend.last_name || ""
+  // Get name from names array (multi-language) if available, otherwise use first_name/last_name
+  const uzName = backend.names?.find((n) => n.language === "uz")
+  const ism = uzName?.first_name || backend.first_name || ""
+  const familiya = uzName?.last_name || backend.last_name || ""
+  const otasining_ismi = uzName?.father_name || ""
 
   const roli = mapBackendRoleToFrontend(backend.role)
   const roli_internal = backend.role === "HOD" ? "Kafedra mudiri" : backend.role === "ADMIN" ? "Admin" : "O'qituvchi"
+
+  // Map employments if present
+  const employments = backend.employments?.map((emp) => ({
+    id: emp.id,
+    employment_type: emp.employment_type,
+    rate: emp.rate,
+    department: emp.department || null,
+    position: emp.position || null,
+    is_active: emp.is_active,
+    created_at: emp.created_at,
+    updated_at: emp.updated_at,
+  }))
 
   return {
     id: backend.id,
@@ -251,6 +292,7 @@ export function mapBackendUserToFrontend(backend: BackendUser): User {
     telefon_raqami: backend.phone || "",
     roli,
     roli_internal,
+    available_roles: backend.available_roles || [],
     user_id: backend.user_id || "",
     username: backend.username,
     password: "", // Not returned from backend
@@ -259,7 +301,17 @@ export function mapBackendUserToFrontend(backend: BackendUser): User {
     scopus_link: backend.scopus,
     google_scholar_link: backend.scholar,
     research_id_link: backend.research_id,
-  }
+    // Preserve all language variants (selection happens in components)
+    names: backend.names,
+    full_name: backend.full_name,
+    full_name_uzc: backend.full_name_uzc,
+    full_name_ru: backend.full_name_ru,
+    full_name_en: backend.full_name_en,
+    // Preserve employments
+    employments,
+    // Avatar
+    avatar: backend.avatar || undefined,
+  } as User
 }
 
 // Methodical Work mapping
@@ -314,7 +366,7 @@ export function mapBackendCertificateToFrontend(backend: BackendCertificate): Ce
     nomi: backend.title,
     yili: parseAcademicYear(yearStr),
     nashriyot_nomi: backend.publisher,
-    mualliflar: backend.authors.map((a) => a.id),
+    mualliflar: (backend.authors || []).map((a) => a.id),
     sertifikat_turi: mapBackendCertificateTypeToFrontend(backend.type),
     tili: mapBackendLanguageToFrontend(backend.language),
     sertifikat_fayli: backend.file_url,
@@ -332,7 +384,7 @@ export function mapBackendSoftwareCertificateToFrontend(
 ): SoftwareCertificate {
   return {
     id: backend.id,
-    mualliflar: backend.authors.map((a) => a.id),
+    mualliflar: (backend.authors || []).map((a) => a.id),
     nomi: backend.title,
     tasdiqlangan_sana: backend.approval_date,
     berilgan_joy: backend.issued_by,

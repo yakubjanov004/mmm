@@ -76,7 +76,7 @@ class ChangePasswordView(generics.GenericAPIView):
 @extend_schema(
     tags=["Users"],
     summary="User management",
-    description="CRUD operations for user management. Only accessible by administrators.",
+    description="CRUD operations for user management. List and retrieve are accessible to all authenticated users. Create, update, and delete are admin-only.",
 )
 class UserViewSet(viewsets.ModelViewSet):
     queryset = (
@@ -84,8 +84,32 @@ class UserViewSet(viewsets.ModelViewSet):
         .select_related("profile", "profile__department", "profile__position")
         .order_by("username")
     )
-    permission_classes = [permissions.IsAuthenticated, IsAdmin]
     filter_backends = []
+
+    def get_queryset(self):
+        """
+        Filter out admin and djangoadmin users from the list.
+        """
+        queryset = super().get_queryset()
+        # Exclude admin and djangoadmin users from list view
+        if self.action == "list":
+            queryset = queryset.exclude(
+                username__iexact="admin"
+            ).exclude(
+                username__iexact="djangoadmin"
+            ).exclude(
+                profile__role="ADMIN"
+            )
+        return queryset
+
+    def get_permissions(self):
+        """
+        Allow all authenticated users to list and retrieve users (for author selection).
+        Only admins can create, update, or delete users.
+        """
+        if self.action in {"list", "retrieve"}:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsAdmin()]
 
     def get_serializer_class(self):
         if self.action in {"create", "update", "partial_update"}:
@@ -109,3 +133,33 @@ class UserViewSet(viewsets.ModelViewSet):
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+@extend_schema(
+    tags=["Authentication"],
+    summary="Upload avatar",
+    description="Upload or update the avatar image for the currently authenticated user.",
+)
+class AvatarUploadView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if "avatar" not in request.FILES:
+            return Response({"detail": "Avatar fayl yuborilmadi."}, status=400)
+
+        avatar_file = request.FILES["avatar"]
+        
+        # Validate file size (max 5MB)
+        if avatar_file.size > 5 * 1024 * 1024:
+            return Response({"detail": "Rasm hajmi 5MB dan katta bo'lishi mumkin emas."}, status=400)
+
+        # Validate file type
+        if not avatar_file.content_type.startswith("image/"):
+            return Response({"detail": "Faqat rasm fayllari qabul qilinadi."}, status=400)
+
+        profile = request.user.profile
+        profile.avatar = avatar_file
+        profile.save()
+
+        serializer = ProfileSerializer(profile, context={"request": request})
+        return Response(serializer.data, status=200)

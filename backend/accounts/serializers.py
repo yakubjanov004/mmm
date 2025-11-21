@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from accounts.models import Department, Position, Profile
+from accounts.models import Department, Employment, Position, Profile, ProfileName
 
 User = get_user_model()
 
@@ -19,6 +19,30 @@ class PositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = ("id", "name")
+
+
+class ProfileNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProfileName
+        fields = ("language", "first_name", "last_name", "father_name")
+
+
+class EmploymentSerializer(serializers.ModelSerializer):
+    department = DepartmentSerializer(read_only=True)
+    position = PositionSerializer(read_only=True)
+
+    class Meta:
+        model = Employment
+        fields = (
+            "id",
+            "employment_type",
+            "rate",
+            "department",
+            "position",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
 
 
 class ProfileShortSerializer(serializers.ModelSerializer):
@@ -48,6 +72,17 @@ class ProfileSerializer(serializers.ModelSerializer):
     department = serializers.SerializerMethodField()
     position = serializers.SerializerMethodField()
     user_id = serializers.CharField(source="user_id_str", allow_blank=True)
+    available_roles = serializers.ListField(
+        child=serializers.CharField(), read_only=True
+    )
+    names = ProfileNameSerializer(many=True, read_only=True)
+    full_name = serializers.SerializerMethodField()
+    full_name_uzc = serializers.SerializerMethodField()
+    full_name_ru = serializers.SerializerMethodField()
+    full_name_en = serializers.SerializerMethodField()
+    employments = EmploymentSerializer(many=True, read_only=True)
+
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -58,10 +93,18 @@ class ProfileSerializer(serializers.ModelSerializer):
             "last_name",
             "email",
             "role",
+            "available_roles",
+            "names",
+            "full_name",
+            "full_name_uzc",
+            "full_name_ru",
+            "full_name_en",
+            "employments",
             "department",
             "position",
             "phone",
             "birth_date",
+            "avatar",
             "scopus",
             "scholar",
             "research_id",
@@ -77,6 +120,43 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not obj.position:
             return None
         return obj.position.name
+
+    def get_full_name(self, obj: Profile) -> str:
+        """Get full name in default language (uz) or from query param."""
+        request = self.context.get("request")
+        lang = "uz"
+        if request:
+            lang = request.query_params.get("lang", "uz")
+        return obj.get_full_name_by_lang(lang)
+
+    def get_full_name_uzc(self, obj: Profile) -> str:
+        return obj.get_full_name_by_lang("uzc")
+
+    def get_full_name_ru(self, obj: Profile) -> str:
+        return obj.get_full_name_by_lang("ru")
+
+    def get_full_name_en(self, obj: Profile) -> str:
+        return obj.get_full_name_by_lang("en")
+
+    def get_avatar(self, obj: Profile) -> str | None:
+        """Return full URL for avatar image."""
+        if not obj.avatar:
+            return None
+        request = self.context.get("request")
+        if request:
+            # obj.avatar.url returns relative URL like /media/avatars/...
+            # build_absolute_uri will create full URL
+            avatar_url = obj.avatar.url
+            # If URL doesn't start with http, make it absolute
+            if avatar_url.startswith("http"):
+                return avatar_url
+            return request.build_absolute_uri(avatar_url)
+        # Fallback if no request context
+        from django.conf import settings
+        if obj.avatar:
+            # Return relative URL that frontend can use
+            return obj.avatar.url
+        return None
 
 
 class UserAdminWriteSerializer(serializers.ModelSerializer):
@@ -252,11 +332,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         profile = getattr(user, "profile", None)
         if profile:
             token["role"] = profile.role
+            token["roles"] = profile.available_roles
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
         profile = self.user.profile
-        data["user"] = ProfileSerializer(profile).data
+        data["user"] = ProfileSerializer(profile, context=self.context).data
         return data
 

@@ -17,40 +17,74 @@ import {
 } from "lucide-react"
 import { getCurrentUserSync, logout } from "@/lib/auth"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "@/lib/i18n"
 
-// Role-specific navigation items
+// Role-specific navigation items - will be localized in component
 const adminNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/users", label: "Foydalanuvchilar", icon: Users },
-  { href: "/statistics", label: "Statistika", icon: BarChart3 },
-  { href: "/settings", label: "Sozlamalar", icon: Settings },
+  { href: "/dashboard", labelKey: "menu.dashboard", icon: LayoutDashboard },
+  { href: "/users", labelKey: "menu.users", icon: Users },
+  { href: "/statistics", labelKey: "menu.statistics", icon: BarChart3 },
+  { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ]
 
 const hodNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/profile", label: "Profil", icon: User },
-  { href: "/methodical-works", label: "Uslubiy ishlar", icon: BookOpen },
-  { href: "/research-works", label: "Ilmiy ishlar", icon: GraduationCap },
-  { href: "/certificates", label: "Sertifikatlar", icon: Award },
-  { href: "/software-certificates", label: "Dasturiy guvohnomalar", icon: FileCode },
-  { href: "/statistics", label: "Statistika", icon: BarChart3 },
-  { href: "/settings", label: "Sozlamalar", icon: Settings },
+  { href: "/dashboard", labelKey: "menu.dashboard", icon: LayoutDashboard },
+  { href: "/profile", labelKey: "menu.profile", icon: User },
+  { href: "/teachers", labelKey: "menu.teachers", icon: Users },
+  { href: "/methodical-works", labelKey: "menu.methodical-works", icon: BookOpen },
+  { href: "/research-works", labelKey: "menu.research-works", icon: GraduationCap },
+  { href: "/certificates", labelKey: "menu.certificates", icon: Award },
+  { href: "/software-certificates", labelKey: "menu.software-certificates", icon: FileCode },
+  { href: "/statistics", labelKey: "menu.statistics", icon: BarChart3 },
+  { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ]
 
 const teacherNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/profile", label: "Profil", icon: User },
-  { href: "/methodical-works", label: "Uslubiy ishlar", icon: BookOpen },
-  { href: "/research-works", label: "Ilmiy ishlar", icon: GraduationCap },
-  { href: "/certificates", label: "Sertifikatlar", icon: Award },
-  { href: "/software-certificates", label: "Dasturiy guvohnomalar", icon: FileCode },
-  { href: "/settings", label: "Sozlamalar", icon: Settings },
+  { href: "/dashboard", labelKey: "menu.dashboard", icon: LayoutDashboard },
+  { href: "/profile", labelKey: "menu.profile", icon: User },
+  { href: "/methodical-works", labelKey: "menu.methodical-works", icon: BookOpen },
+  { href: "/research-works", labelKey: "menu.research-works", icon: GraduationCap },
+  { href: "/certificates", labelKey: "menu.certificates", icon: Award },
+  { href: "/software-certificates", labelKey: "menu.software-certificates", icon: FileCode },
+  { href: "/settings", labelKey: "menu.settings", icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { language, t } = useTranslation()
   const currentUser = getCurrentUserSync()
+
+  // Get user name in current language
+  const getUserDisplayName = (): string => {
+    if (!currentUser) return t("navbar.user")
+    
+    let displayName: string | undefined
+    
+    switch (language) {
+      case "uz":
+        displayName = currentUser.full_name
+        break
+      case "uzc":
+        displayName = currentUser.full_name_uzc
+        break
+      case "ru":
+        displayName = currentUser.full_name_ru
+        break
+      case "en":
+        displayName = currentUser.full_name_en
+        break
+      default:
+        displayName = currentUser.full_name
+    }
+    
+    if (displayName) {
+      return displayName
+    }
+    
+    // Fallback to default name construction
+    return `${currentUser.ism} ${currentUser.familiya}`.trim() || currentUser.username
+  }
 
   // Get navigation items based on role
   const getNavItems = () => {
@@ -121,35 +155,35 @@ export function Sidebar() {
     if (!currentUser) return ""
     switch (currentUser.roli) {
       case "Admin":
-        return "Admin"
+        return t("roles.admin")
       case "Head of Department":
-        return "Kafedra mudiri"
+        return t("roles.hod")
       case "Teacher":
-        return "O'qituvchi"
+        return t("roles.teacher")
       default:
         return currentUser.roli
     }
   }
 
   return (
-    <aside className="w-64 border-r border-border bg-sidebar flex flex-col h-screen fixed left-0 top-0">
+    <aside className="w-64 border-r border-border bg-sidebar flex flex-col h-screen flex-shrink-0">
       {/* Logo */}
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", roleStyles.accentBg)}>
+      <div className="p-4 border-b border-sidebar-border overflow-hidden">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", roleStyles.accentBg)}>
             <Cpu className="w-5 h-5 text-white" />
           </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-sidebar-foreground text-sm">
-              Robotics & Intelligent Systems
+          <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+            <span className="font-semibold text-sidebar-foreground text-sm truncate">
+              {t("sidebar.title")}
             </span>
-            <span className="text-xs text-muted-foreground">
-              Department Portal
+            <span className="text-xs text-muted-foreground truncate">
+              {t("sidebar.subtitle")}
             </span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Robototexnika va intellektual tizimlar kafedrasi
+        <p className="text-xs text-muted-foreground line-clamp-2 break-words overflow-hidden">
+          {t("sidebar.departmentName")}
         </p>
       </div>
 
@@ -163,14 +197,14 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-4 py-2 rounded-lg transition-colors",
+                "flex items-center gap-3 px-4 py-2 rounded-lg transition-colors min-w-0",
                 isActive
                   ? cn(roleStyles.accentBg, "text-white")
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50",
               )}
             >
-              <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span className="truncate">{t(item.labelKey)}</span>
             </Link>
           )
         })}
@@ -178,18 +212,18 @@ export function Sidebar() {
 
       {/* User Info & Logout */}
       {currentUser && (
-        <div className="p-4 border-t border-sidebar-border space-y-2">
-          <div className="text-sm text-sidebar-foreground">
-            <p className="font-semibold">
-              {currentUser.ism} {currentUser.familiya}
+        <div className="p-4 border-t border-sidebar-border space-y-2 overflow-hidden">
+          <div className="text-sm text-sidebar-foreground overflow-hidden">
+            <p className="font-semibold truncate">
+              {getUserDisplayName()}
             </p>
-            <p className={cn("text-xs font-medium", roleStyles.accentText)}>{getRoleLabel()}</p>
+            <p className={cn("text-xs font-medium truncate", roleStyles.accentText)}>{getRoleLabel()}</p>
           </div>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors text-sm"
           >
-            <span>Chiqish</span>
+            <span className="truncate">{t("sidebar.logout")}</span>
           </button>
         </div>
       )}

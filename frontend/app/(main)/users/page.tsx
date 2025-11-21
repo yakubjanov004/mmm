@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import React, { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,9 +49,11 @@ import Link from "next/link"
 import type { User, Position, Role } from "@/lib/types"
 import { POSITIONS, ROLES } from "@/lib/types"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "@/lib/i18n"
 
 export default function UsersPage() {
   const router = useRouter()
+  const { t } = useTranslation()
   const currentUser = getCurrentUserSync()
   const [searchQuery, setSearchQuery] = useState("")
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -60,20 +62,6 @@ export default function UsersPage() {
   const [formData, setFormData] = useState<Partial<User>>({})
   const [copiedCredentials, setCopiedCredentials] = useState<number | null>(null)
 
-  // Only Admin can access
-  if (currentUser?.roli !== "Admin") {
-    return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground">
-            Only administrators can access this page.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   // Data states
   const [users, setUsers] = useState<User[]>([])
   const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([])
@@ -81,15 +69,24 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const isFetchingRef = useRef(false)
 
-  // Fetch data from API - only once on mount
+  // Only Admin can access - check inside useEffect to prevent API calls
+  const isAdmin = currentUser?.roli === "Admin"
+
+  // Fetch data from API - only once on mount and only if admin
   useEffect(() => {
+    // Only fetch if user is admin
+    if (!isAdmin) {
+      setIsLoading(false)
+      return
+    }
+
     // Prevent multiple simultaneous fetches
     if (isFetchingRef.current) {
       return
     }
-    
+
     isFetchingRef.current = true
-    
+
     const fetchData = async () => {
       setIsLoading(true)
       try {
@@ -99,7 +96,7 @@ export default function UsersPage() {
             console.error("Users API error:", err)
             // Don't show toast for authentication errors (will redirect)
             if (err.message && !err.message.includes("Authentication failed") && !err.message.includes("token")) {
-              toast.error("Foydalanuvchilarni yuklashda xatolik: " + (err.message || "Noma'lum xatolik"))
+              toast.error(t("users.loadError") + ": " + (err.message || t("users.unknownError")))
             }
             return []
           }),
@@ -111,7 +108,7 @@ export default function UsersPage() {
             console.error("Positions API error:", err)
             // Don't show toast for authentication errors (will redirect)
             if (err.message && !err.message.includes("Authentication failed") && !err.message.includes("token")) {
-              toast.error("Lavozimlarni yuklashda xatolik: " + (err.message || "Noma'lum xatolik"))
+              toast.error(t("common.error") + ": " + (err.message || t("users.unknownError")))
             }
             return []
           }),
@@ -124,14 +121,14 @@ export default function UsersPage() {
         console.log("Positions data type:", typeof posData)
         console.log("Is positions array?", Array.isArray(posData))
         console.log("Positions length:", Array.isArray(posData) ? posData.length : "N/A")
-        
+
         // Backend returns paginated response: { count, next, previous, results: [...] }
         // Or direct array (for backward compatibility)
-        const usersArray = Array.isArray(usersData) 
-          ? usersData 
-          : ((usersData as any)?.results || [])
+        const usersArray = Array.isArray(usersData)
+          ? usersData
+          : ((usersData as any)?.results || usersData || [])
         console.log("Processing", usersArray.length, "users")
-        
+
         const usersList = usersArray.map((u: any, index: number) => {
           console.log(`Processing user ${index}:`, u)
           try {
@@ -144,37 +141,54 @@ export default function UsersPage() {
               last_name: u.last_name || u.profile?.last_name || "",
               email: u.email || u.profile?.email || "",
               role: (u.profile?.role || "TEACHER") as "ADMIN" | "HOD" | "TEACHER",
+              available_roles: u.profile?.available_roles || [],
               department: u.profile?.department || null,
               position: u.profile?.position || null,
               phone: u.profile?.phone || "",
               birth_date: u.profile?.birth_date || "",
+              avatar: u.profile?.avatar || null,
               scopus: u.profile?.scopus || "",
               scholar: u.profile?.scholar || "",
               research_id: u.profile?.research_id || "",
               user_id: u.profile?.user_id || u.profile?.user_id_str || "",
+              // Multi-language names - make sure this is included
+              names: u.profile?.names || [],
+              full_name: u.profile?.full_name,
+              full_name_uzc: u.profile?.full_name_uzc,
+              full_name_ru: u.profile?.full_name_ru,
+              full_name_en: u.profile?.full_name_en,
+              // Employments
+              employments: u.profile?.employments || [],
             }
             console.log(`Backend user data for ${index}:`, backendUserData)
+            console.log(`Department for ${index}:`, backendUserData.department)
             const mapped = mapBackendUserToFrontend(backendUserData)
             console.log(`Mapped user ${index}:`, mapped)
+            console.log(`Mapped department for ${index}:`, mapped.department)
             return mapped
           } catch (err) {
             console.error(`Error mapping user ${index}:`, err, u)
             return null
           }
         }).filter((u: any) => u !== null) as User[]
-        
+
         console.log("Final mapped users list:", usersList)
         console.log("Final users count:", usersList.length)
         setUsers(usersList)
-        setDepartments(Array.isArray(deptsData) ? deptsData : [])
-        
-        // Handle positions - check if it's paginated or direct array
-        const positionsArray = Array.isArray(posData) 
-          ? posData 
+        // Handle departments - check if it's paginated or direct array
+        const departmentsArray = Array.isArray(deptsData)
+          ? deptsData
+          : ((deptsData as any)?.results || [])
+        console.log("Departments data:", departmentsArray)
+        console.log("Departments count:", departmentsArray.length)
+        setDepartments(departmentsArray)
+
+        const positionsArray = Array.isArray(posData)
+          ? posData
           : ((posData as any)?.results || [])
         console.log("Setting positions:", positionsArray)
         console.log("Positions count:", positionsArray.length)
-        
+
         // Ensure positions have the correct structure
         const formattedPositions = positionsArray.map((pos: any) => {
           if (typeof pos === 'string') {
@@ -189,7 +203,7 @@ export default function UsersPage() {
         setPositions(formattedPositions)
       } catch (error: any) {
         console.error("Fetch data error:", error)
-        toast.error("Ma'lumotlarni yuklashda xatolik: " + (error.message || "Noma'lum xatolik"))
+        toast.error(t("common.error") + ": " + (error.message || t("users.unknownError")))
       } finally {
         setIsLoading(false)
         isFetchingRef.current = false
@@ -197,7 +211,7 @@ export default function UsersPage() {
     }
 
     fetchData()
-    
+
     // Cleanup function to reset ref if component unmounts
     return () => {
       isFetchingRef.current = false
@@ -218,12 +232,18 @@ export default function UsersPage() {
   }, [users, searchQuery])
 
   const handleCreate = () => {
+    // Only Admin can create users
+    if (!isAdmin) {
+      toast.error(t("errors.adminOnly"))
+      return
+    }
+
     setEditingUser(null)
     setFormData({
       ism: "",
       familiya: "",
       otasining_ismi: "",
-      tugilgan_yili: new Date().getFullYear().toString(),
+      tugilgan_sana: "",
       lavozimi: undefined, // Will be set when Teacher role is selected
       telefon_raqami: "+998",
       roli: "Teacher",
@@ -238,28 +258,45 @@ export default function UsersPage() {
   }
 
   const handleEdit = (user: User) => {
+    // Only Admin can edit users
+    if (!isAdmin) {
+      toast.error(t("errors.adminOnly"))
+      return
+    }
+
     console.log("Editing user:", user)
-    console.log("User role:", user.roli)
+    console.log("User kafedra_id:", user.kafedra_id)
+    console.log("User department:", user.department)
     setEditingUser(user)
-    setFormData(user)
+    setFormData({
+      ...user,
+      // Ensure kafedra_id is set correctly
+      kafedra_id: user.kafedra_id || undefined,
+    })
     setIsDialogOpen(true)
   }
 
   const handleSave = async () => {
+    // Only Admin can create/update users
+    if (!isAdmin) {
+      toast.error(t("errors.adminOnly"))
+      return
+    }
+
     if (!formData.ism || !formData.familiya) {
-      toast.error("First name and Last name are required")
+      toast.error(t("users.firstNameRequired"))
       return
     }
     if (!formData.username) {
-      toast.error("Username is required")
+      toast.error(t("users.usernameRequired"))
       return
     }
     if (!editingUser && !formData.password) {
-      toast.error("Password is required for new users")
+      toast.error(t("users.passwordRequired"))
       return
     }
     if (formData.telefon_raqami && !/^\+998\d{9}$/.test(formData.telefon_raqami)) {
-      toast.error("Phone must be in format +998xxxxxxxxx")
+      toast.error(t("users.phoneFormatError"))
       return
     }
 
@@ -273,13 +310,13 @@ export default function UsersPage() {
       } else {
         backendRole = "TEACHER"
       }
-      
+
       console.log("Updating user role:", {
         frontendRole: formData.roli,
         backendRole: backendRole,
         username: formData.username
       })
-      
+
       const userData: any = {
         username: formData.username,
         first_name: formData.ism,
@@ -314,7 +351,7 @@ export default function UsersPage() {
           return null
         })(),
         phone: formData.telefon_raqami || "",
-        birth_date: formData.tugilgan_yili ? `${formData.tugilgan_yili}-01-01` : null,
+        birth_date: formData.tugilgan_sana || null,
         scopus: formData.scopus_link || "",
         scholar: formData.google_scholar_link || "",
         research_id: formData.research_id_link || "",
@@ -327,17 +364,17 @@ export default function UsersPage() {
 
       if (editingUser) {
         await usersAPI.update(editingUser.id, userData)
-        toast.success("User updated successfully")
+        toast.success(t("users.userUpdated"))
       } else {
         await usersAPI.create(userData)
-        toast.success("User created successfully")
+        toast.success(t("users.userCreated"))
         setCopiedCredentials(-1) // New user ID
       }
-      
+
       // Refresh data
       const usersData = await usersAPI.list()
-      const usersArray = Array.isArray(usersData) 
-        ? usersData 
+      const usersArray = Array.isArray(usersData)
+        ? usersData
         : ((usersData as any)?.results || [])
       const usersList = usersArray.map((u: any) => {
         const backendUserData = {
@@ -359,7 +396,7 @@ export default function UsersPage() {
         return mapBackendUserToFrontend(backendUserData)
       })
       setUsers(usersList)
-      
+
       setIsDialogOpen(false)
       setEditingUser(null)
       setFormData({})
@@ -369,16 +406,23 @@ export default function UsersPage() {
   }
 
   const handleDelete = async (id: number) => {
+    // Only Admin can delete users
+    if (!isAdmin) {
+      toast.error(t("errors.adminOnly"))
+      setUserToDelete(null)
+      return
+    }
+
     try {
       await usersAPI.delete(id)
-      toast.success("Foydalanuvchi muvaffaqiyatli o'chirildi")
-      
+      toast.success(t("users.userDeleted"))
+
       setUserToDelete(null)
-      
+
       // Refresh data
       const usersData = await usersAPI.list()
-      const usersArray = Array.isArray(usersData) 
-        ? usersData 
+      const usersArray = Array.isArray(usersData)
+        ? usersData
         : ((usersData as any)?.results || [])
       const usersList = usersArray.map((u: any) => {
         const backendUserData = {
@@ -400,7 +444,7 @@ export default function UsersPage() {
         return mapBackendUserToFrontend(backendUserData)
       })
       setUsers(usersList)
-      
+
       // Refresh the page to ensure all data is updated
       router.refresh()
     } catch (error: any) {
@@ -412,12 +456,26 @@ export default function UsersPage() {
     const text = `${user.username} / ${user.password}`
     navigator.clipboard.writeText(text)
     setCopiedCredentials(user.id)
-    toast.success("Credentials copied to clipboard!")
+    toast.success(t("users.credentialsCopied"))
     setTimeout(() => setCopiedCredentials(null), 2000)
   }
 
   const getRoleDisplay = (role: Role) => {
     return role
+  }
+
+  // Only Admin can access - show access denied if not admin
+  if (!isAdmin) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <h1 className="text-2xl font-bold mb-2">{t("errors.accessDenied")}</h1>
+          <p className="text-muted-foreground">
+            {t("errors.adminOnly")}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -426,22 +484,24 @@ export default function UsersPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/dashboard">{t("menu.dashboard")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbItem>Users</BreadcrumbItem>
+          <BreadcrumbItem>{t("menu.users")}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Users</h1>
-          <p className="text-muted-foreground">Manage system users</p>
+          <h1 className="text-3xl font-bold">{t("menu.users")}</h1>
+          <p className="text-muted-foreground">{t("common.manageSystemUsers")}</p>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create User
-        </Button>
+        {isAdmin && (
+          <Button onClick={handleCreate}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t("buttons.createUser")}
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -450,7 +510,7 @@ export default function UsersPage() {
           <div className="flex items-center gap-2">
             <Search className="w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search (name, username, user ID)..."
+              placeholder={t("common.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-md"
@@ -462,9 +522,9 @@ export default function UsersPage() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>{t("common.allUsers")}</CardTitle>
           <CardDescription>
-            {filteredUsers.length} user(s) found
+            {filteredUsers.length} {t("common.usersFound")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -474,19 +534,19 @@ export default function UsersPage() {
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No users found
+              {t("common.noUsersFound")}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>{t("table.id")}</TableHead>
+                  <TableHead>{t("table.name")}</TableHead>
+                  <TableHead>{t("table.username")}</TableHead>
+                  <TableHead>{t("table.role")}</TableHead>
+                  <TableHead>{t("table.position")}</TableHead>
+                  <TableHead>{t("table.department")}</TableHead>
+                  <TableHead>{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -494,7 +554,7 @@ export default function UsersPage() {
                   <TableRow key={user.id}>
                     <TableCell>{user.id}</TableCell>
                     <TableCell className="font-medium">
-                      {user.ism} {user.familiya}
+                      {user.full_name || `${user.ism}${user.otasining_ismi ? ` ${user.otasining_ismi}` : ""} ${user.familiya}`.trim()}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -529,17 +589,24 @@ export default function UsersPage() {
                         <Badge variant="outline">{user.lavozimi}</Badge>
                       )}
                     </TableCell>
-                    <TableCell>{user.department || "-"}</TableCell>
+                    <TableCell>
+                      {user.department ? (
+                        <span className="text-sm">{user.department}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(user)}
+                          disabled={!isAdmin}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        {user.id !== currentUser?.id && (
+                        {isAdmin && user.id !== currentUser?.id && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -563,19 +630,19 @@ export default function UsersPage() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingUser ? "Edit User" : "Create New User"}
+              {editingUser ? t("users.editUser") : t("users.createNewUser")}
             </DialogTitle>
             <DialogDescription>
               {editingUser
-                ? "Update user information"
-                : "Create a new user account"}
+                ? t("users.updateUserInfo")
+                : t("users.createUserAccount")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="ism">
-                  First Name <span className="text-red-500">*</span>
+                  {t("labels.name")} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="ism"
@@ -589,7 +656,7 @@ export default function UsersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="familiya">
-                  Last Name <span className="text-red-500">*</span>
+                  {t("labels.surname")} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="familiya"
@@ -602,7 +669,7 @@ export default function UsersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="otasining_ismi">Patronymic</Label>
+                <Label htmlFor="otasining_ismi">{t("labels.patronymic")}</Label>
                 <Input
                   id="otasining_ismi"
                   value={formData.otasining_ismi || ""}
@@ -616,14 +683,14 @@ export default function UsersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="tugilgan_yili">Birth Year (YYYY)</Label>
+                <Label htmlFor="tugilgan_sana">{t("labels.birthDate")}</Label>
                 <Input
-                  id="tugilgan_yili"
-                  value={formData.tugilgan_yili || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tugilgan_yili: e.target.value })
+                  id="tugilgan_sana"
+                  type="date"
+                  value={formData.tugilgan_sana || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormData({ ...formData, tugilgan_sana: e.target.value })
                   }
-                  placeholder="2024"
                 />
               </div>
               <div></div>
@@ -631,7 +698,7 @@ export default function UsersPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="roli">
-                  Role <span className="text-red-500">*</span>
+                  {t("labels.role")} <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={formData.roli}
@@ -652,7 +719,7 @@ export default function UsersPage() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={t("labels.selectRole")} />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((role) => (
@@ -666,7 +733,7 @@ export default function UsersPage() {
               {/* Position - only show for Teacher role */}
               {formData.roli === "Teacher" && (
                 <div className="space-y-2">
-                  <Label htmlFor="lavozimi">Position</Label>
+                  <Label htmlFor="lavozimi">{t("labels.position")}</Label>
                   <Select
                     value={formData.lavozimi}
                     onValueChange={(value) =>
@@ -674,12 +741,12 @@ export default function UsersPage() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select position" />
+                      <SelectValue placeholder={t("labels.selectPosition")} />
                     </SelectTrigger>
                     <SelectContent>
                       {isLoading ? (
                         <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                          Loading positions...
+                          {t("common.loadingPositions")}
                         </div>
                       ) : positions.length > 0 ? (
                         positions
@@ -691,7 +758,7 @@ export default function UsersPage() {
                           ))
                       ) : (
                         <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                          Lavozimlar mavjud emas
+                          {t("common.noPositions")}
                         </div>
                       )}
                     </SelectContent>
@@ -701,16 +768,16 @@ export default function UsersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="telefon_raqami">Phone (+998xxxxxxxxx)</Label>
+                <Label htmlFor="telefon_raqami">{t("labels.phone")}</Label>
                 <Input
                   id="telefon_raqami"
                   value={formData.telefon_raqami || ""}
                   onChange={(e) => {
                     let value = e.target.value
-                    
+
                     // Remove all non-digit characters except +
                     const digits = value.replace(/[^\d]/g, "")
-                    
+
                     // Always start with +998
                     if (digits.length === 0) {
                       value = "+998"
@@ -719,12 +786,12 @@ export default function UsersPage() {
                       const phoneDigits = digits.slice(0, 9)
                       value = "+998" + phoneDigits
                     }
-                    
+
                     // Limit to 13 characters (+998 + 9 digits)
                     if (value.length > 13) {
                       value = value.slice(0, 13)
                     }
-                    
+
                     setFormData({ ...formData, telefon_raqami: value })
                   }}
                   placeholder="+998901234567"
@@ -735,7 +802,7 @@ export default function UsersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="user_id">User ID</Label>
+                <Label htmlFor="user_id">{t("labels.userID")}</Label>
                 <Input
                   id="user_id"
                   value={formData.user_id || ""}
@@ -744,7 +811,7 @@ export default function UsersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="username">
-                  Username <span className="text-red-500">*</span>
+                  {t("labels.username")} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="username"
@@ -755,7 +822,7 @@ export default function UsersPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">
-                Password {!editingUser && <span className="text-red-500">*</span>}
+                {t("labels.password")} {!editingUser && <span className="text-red-500">*</span>}
               </Label>
               <Input
                 id="password"
@@ -769,25 +836,34 @@ export default function UsersPage() {
               <Label htmlFor="department">Department</Label>
               <Select
                 value={formData.kafedra_id ? String(formData.kafedra_id) : ""}
-                onValueChange={(value) =>
+                onValueChange={(value) => {
+                  console.log("Department selected:", value)
                   setFormData({ ...formData, kafedra_id: Number(value) })
-                }
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
+                  <SelectValue placeholder={t("labels.selectDepartment")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={String(dept.id)}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
+                  {departments.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      {t("labels.noDepartmentsAvailable") || "No departments available"}
+                    </div>
+                  ) : (
+                    departments
+                      .filter((dept) => dept.id && dept.id > 0) // Filter out invalid IDs
+                      .map((dept) => (
+                        <SelectItem key={dept.id} value={String(dept.id)}>
+                          {dept.name}
+                        </SelectItem>
+                      ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="scopus_link">Scopus Link</Label>
+                <Label htmlFor="scopus_link">{t("labels.scopusLink")}</Label>
                 <Input
                   id="scopus_link"
                   value={formData.scopus_link || ""}
@@ -798,7 +874,7 @@ export default function UsersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="google_scholar_link">Google Scholar Link</Label>
+                <Label htmlFor="google_scholar_link">{t("labels.googleScholarLink")}</Label>
                 <Input
                   id="google_scholar_link"
                   value={formData.google_scholar_link || ""}
@@ -809,7 +885,7 @@ export default function UsersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="research_id_link">Research ID Link</Label>
+                <Label htmlFor="research_id_link">{t("labels.researchIDLink")}</Label>
                 <Input
                   id="research_id_link"
                   value={formData.research_id_link || ""}
@@ -824,7 +900,7 @@ export default function UsersPage() {
               <div className="p-3 bg-muted rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Share Credentials</p>
+                    <p className="text-sm font-medium">{t("users.shareCredentials")}</p>
                     <p className="text-xs text-muted-foreground font-mono">
                       {formData.username} / {formData.password}
                     </p>
@@ -836,11 +912,11 @@ export default function UsersPage() {
                     onClick={() => {
                       const text = `${formData.username} / ${formData.password}`
                       navigator.clipboard.writeText(text)
-                      toast.success("Credentials copied!")
+                      toast.success(t("users.credentialsCopied"))
                     }}
                   >
                     <Copy className="w-4 h-4 mr-2" />
-                    Copy
+                    {t("buttons.copy")}
                   </Button>
                 </div>
               </div>
@@ -848,9 +924,9 @@ export default function UsersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
+              {t("buttons.cancel")}
             </Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button onClick={handleSave}>{t("buttons.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -859,39 +935,39 @@ export default function UsersPage() {
       <AlertDialog open={userToDelete !== null} onOpenChange={() => setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Foydalanuvchini o'chirish</AlertDialogTitle>
+            <AlertDialogTitle>{t("users.deleteUser")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu amalni bekor qilib bo'lmaydi. Foydalanuvchi butunlay o'chiriladi.
+              {t("users.deleteConfirm")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {userToDelete && (
             <div className="space-y-2 py-4">
               <p className="font-medium text-sm">
-                Quyidagi foydalanuvchi o'chirilmoqda:
+                {t("users.deletingUser")}
               </p>
               <div className="bg-muted p-3 rounded-lg space-y-1 text-sm">
-                <p><span className="font-semibold">ID:</span> {userToDelete.id}</p>
-                <p><span className="font-semibold">Ism:</span> {userToDelete.ism || "-"} {userToDelete.familiya || ""}</p>
-                <p><span className="font-semibold">Username:</span> {userToDelete.username}</p>
+                <p><span className="font-semibold">{t("table.id")}:</span> {userToDelete.id}</p>
+                <p><span className="font-semibold">{t("labels.name")}:</span> {userToDelete.ism || "-"} {userToDelete.familiya || ""}</p>
+                <p><span className="font-semibold">{t("labels.username")}:</span> {userToDelete.username}</p>
                 {userToDelete.roli && (
-                  <p><span className="font-semibold">Roli:</span> {userToDelete.roli}</p>
+                  <p><span className="font-semibold">{t("labels.role")}:</span> {userToDelete.roli}</p>
                 )}
                 {userToDelete.lavozimi && (
-                  <p><span className="font-semibold">Lavozimi:</span> {userToDelete.lavozimi}</p>
+                  <p><span className="font-semibold">{t("labels.position")}:</span> {userToDelete.lavozimi}</p>
                 )}
                 {userToDelete.department && (
-                  <p><span className="font-semibold">Kafedra:</span> {userToDelete.department}</p>
+                  <p><span className="font-semibold">{t("labels.department")}:</span> {userToDelete.department}</p>
                 )}
               </div>
             </div>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogCancel>{t("buttons.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
               onClick={() => userToDelete && handleDelete(userToDelete.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              O'chirish
+              {t("buttons.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

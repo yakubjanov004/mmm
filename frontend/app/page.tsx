@@ -10,9 +10,11 @@ import { LockIcon } from "lucide-react"
 import { login } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { useTranslation } from "@/lib/i18n"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useTranslation()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -20,7 +22,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username || !password) {
-      toast.error("Please enter username and password")
+      toast.error(t("login.enterCredentials"))
       return
     }
 
@@ -29,14 +31,15 @@ export default function LoginPage() {
       const result = await login(username, password)
       setIsLoading(false)
       if (result.success && result.user) {
-        toast.success(`Welcome, ${result.user.ism} ${result.user.familiya}!`)
+        const name = `${result.user.ism} ${result.user.familiya}`
+        toast.success(t("login.welcome").replace("{{name}}", name))
         router.push("/dashboard")
       } else {
-        toast.error(result.error || "Invalid credentials")
+        toast.error(result.error || t("login.invalidCredentials"))
       }
     } catch (error: any) {
       setIsLoading(false)
-      toast.error(error.message || "Login failed. Please try again.")
+      toast.error(error.message || t("login.loginFailed"))
     }
   }
 
@@ -54,22 +57,22 @@ export default function LoginPage() {
               </div>
             </div>
             <CardTitle className="text-center text-2xl sm:text-3xl">
-              Robotics & Intelligent Systems
+              {t("login.title")}
             </CardTitle>
             <CardDescription className="text-center">
-              Department Portal
+              {t("login.subtitle")}
             </CardDescription>
             <p className="text-center text-sm text-muted-foreground mt-2">
-              Robototexnika va intellektual tizimlar kafedrasi
+              {t("login.departmentName")}
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{t("login.username")}</Label>
                 <Input
                   id="username"
-                  placeholder="Enter username"
+                  placeholder={t("login.enterUsername")}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
@@ -77,11 +80,11 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("login.password")}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter password"
+                  placeholder={t("login.enterPassword")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -89,7 +92,7 @@ export default function LoginPage() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign in"}
+                {isLoading ? t("login.signingIn") : t("login.signIn")}
               </Button>
             </form>
           </CardContent>

@@ -2,6 +2,20 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
+// Get current language from localStorage
+function getCurrentLanguage(): string {
+  if (typeof window === "undefined") return "uz"
+  return localStorage.getItem("app_language") || "uz"
+}
+
+// Add language parameter to endpoint if needed
+function addLangParam(endpoint: string, includeLang: boolean = false): string {
+  if (!includeLang) return endpoint
+  const lang = getCurrentLanguage()
+  const separator = endpoint.includes("?") ? "&" : "?"
+  return `${endpoint}${separator}lang=${lang}`
+}
+
 // Storage keys
 const ACCESS_TOKEN_KEY = "access_token"
 const REFRESH_TOKEN_KEY = "refresh_token"
@@ -209,7 +223,7 @@ export const authAPI = {
   },
 
   getCurrentUser: async () => {
-    return apiRequest("/auth/me/")
+    return apiRequest(addLangParam("/auth/me/", true))
   },
 
   updateProfile: async (data: {

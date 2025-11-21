@@ -35,6 +35,25 @@ export function MultiSelect({
   className,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState("")
+
+  // Memoize the label lookup for better performance
+  const labelMap = React.useMemo(() => {
+    const map = new Map<string, string>()
+    options.forEach((opt) => {
+      if (opt.value && opt.label) {
+        map.set(String(opt.value), String(opt.label))
+      }
+    })
+    return map
+  }, [options])
+
+  // Reset search when popover closes
+  React.useEffect(() => {
+    if (!open) {
+      setSearchQuery("")
+    }
+  }, [open])
 
   const handleUnselect = (item: string) => {
     onChange(selected.filter((i) => i !== item))
@@ -46,6 +65,30 @@ export function MultiSelect({
     } else {
       onChange([...selected, item])
     }
+  }
+
+  // Filter options based on search query
+  const filteredOptions = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return options
+    }
+    const query = searchQuery.toLowerCase().trim()
+    return options.filter((opt) => {
+      const label = String(opt.label || "").toLowerCase()
+      return label.includes(query)
+    })
+  }, [options, searchQuery])
+
+  // Get display label for a selected value
+  const getLabel = (value: string) => {
+    const normalizedValue = String(value)
+    const label = labelMap.get(normalizedValue)
+    if (label) {
+      return label
+    }
+    // Fallback: try to find in options directly
+    const option = options.find((opt) => String(opt.value) === normalizedValue)
+    return option?.label || value
   }
 
   return (
@@ -62,7 +105,7 @@ export function MultiSelect({
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
               selected.map((item) => {
-                const option = options.find((opt) => opt.value === item)
+                const label = getLabel(item)
                 return (
                   <Badge
                     variant="secondary"
@@ -74,7 +117,7 @@ export function MultiSelect({
                       handleUnselect(item)
                     }}
                   >
-                    {option?.label || item}
+                    {label}
                     <span
                       role="button"
                       tabIndex={0}
@@ -105,27 +148,41 @@ export function MultiSelect({
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Qidirish..." />
+      <PopoverContent className="w-full p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <Command shouldFilter={false}>
+          <CommandInput 
+            placeholder="Qidirish..." 
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
           <CommandList>
-            <CommandEmpty>Topilmadi.</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  onSelect={() => handleSelect(option.value)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selected.includes(option.value) ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {filteredOptions.length === 0 ? (
+              <CommandEmpty>Topilmadi.</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filteredOptions.map((option) => {
+                  const isSelected = selected.includes(String(option.value))
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      onSelect={() => {
+                        handleSelect(String(option.value))
+                        setSearchQuery("")
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          isSelected ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {option.label}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

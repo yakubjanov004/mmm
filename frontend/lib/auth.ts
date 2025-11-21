@@ -3,6 +3,7 @@
 import type { Role, RoleInternal, User } from "./types"
 import { authAPI, getAccessToken, clearTokens } from "./api"
 import { mapBackendUserToFrontend } from "./api-mappers"
+import { getActiveRole } from "@/components/role-switcher"
 
 // Session storage keys
 const USER_DATA_KEY = "user_data"
@@ -25,7 +26,7 @@ export async function getCurrentUser(): Promise<User | null> {
   // If no cache and we have a token, fetch from API
   if (getAccessToken()) {
     try {
-      const backendUser = await authAPI.getCurrentUser()
+      const backendUser = await authAPI.getCurrentUser() as any
       const user = mapBackendUserToFrontend(backendUser)
       localStorage.setItem(USER_DATA_KEY, JSON.stringify(user))
       return user
@@ -97,11 +98,14 @@ export function canViewRecord<T extends { mualliflar?: number[]; created_by: num
 ): boolean {
   if (!currentUser) return false
 
+  // Get active role from localStorage
+  const activeRole = getActiveRole(currentUser)
+
   // Admin can view everything
   if (currentUser.roli === "Admin") return true
 
-  // Head of Department can view department records
-  if (currentUser.roli === "Head of Department") {
+  // If active role is HOD, can view all department records (read-only)
+  if (activeRole === "HOD" && currentUser.roli === "Head of Department") {
     // Check if record's department matches user's department
     if (record.department?.id && currentUser.kafedra_id) {
       return record.department.id === currentUser.kafedra_id
@@ -109,18 +113,22 @@ export function canViewRecord<T extends { mualliflar?: number[]; created_by: num
     return false
   }
 
-  // Teacher: can view if they are author/co-author
-  if (currentUser.roli === "Teacher") {
-    // Check if user is in authors list
+  // Head of Department can view department records (when not in HOD mode)
+  if (currentUser.roli === "Head of Department" && activeRole !== "HOD") {
+    // Check if record's department matches user's department
+    if (record.department?.id && currentUser.kafedra_id) {
+      return record.department.id === currentUser.kafedra_id
+    }
+    return false
+  }
+
+  // Teacher or active role is TEACHER: can view only if they are author/co-author or created the item
+  if (currentUser.roli === "Teacher" || activeRole === "TEACHER") {
+    // Check if user is in authors list (hammuallif)
     if (record.mualliflar?.includes(currentUser.id)) return true
     
     // Check if user is the creator
     if (record.created_by === currentUser.id) return true
-    
-    // Check if department-visible and same department
-    if (record.department_visible && record.department?.id && currentUser.kafedra_id) {
-      return record.department.id === currentUser.kafedra_id
-    }
     
     return false
   }
@@ -135,11 +143,17 @@ export function canEditRecord<T extends { mualliflar?: number[]; created_by: num
 ): boolean {
   if (!currentUser) return false
 
+  // Get active role from localStorage
+  const activeRole = getActiveRole(currentUser)
+  
+  // If active role is HOD, user can only view, not edit
+  if (activeRole === "HOD") return false
+
   // Admin can edit everything
   if (currentUser.roli === "Admin") return true
 
-  // Head of Department can edit department records
-  if (currentUser.roli === "Head of Department") {
+  // Head of Department can edit department records (only if active role is not HOD)
+  if (currentUser.roli === "Head of Department" && activeRole !== "HOD") {
     if (record.department?.id && currentUser.kafedra_id) {
       return record.department.id === currentUser.kafedra_id
     }
@@ -147,12 +161,34 @@ export function canEditRecord<T extends { mualliflar?: number[]; created_by: num
   }
 
   // Teacher: can edit if they are author/co-author or creator
-  if (currentUser.roli === "Teacher") {
+  if (currentUser.roli === "Teacher" || activeRole === "TEACHER") {
     // Check if user is in authors list (co-author)
     if (record.mualliflar?.includes(currentUser.id)) return true
     
     // Check if user is the creator
     return record.created_by === currentUser.id
+  }
+
+  return false
+}
+
+// Check if user can create new records
+export function canCreateRecord(currentUser: User | null): boolean {
+  if (!currentUser) return false
+
+  // Get active role from localStorage
+  const activeRole = getActiveRole(currentUser)
+  
+  // If active role is HOD, user cannot create records
+  if (activeRole === "HOD") return false
+
+  // Admin can create everything
+  if (currentUser.roli === "Admin") return true
+
+  // Teacher or Head of Department (when not in HOD mode) can create
+  if (currentUser.roli === "Teacher" || currentUser.roli === "Head of Department") {
+    // Only allow if active role is TEACHER
+    return activeRole === "TEACHER"
   }
 
   return false
@@ -165,11 +201,14 @@ export function filterRecordsByRole<T extends { mualliflar?: number[]; created_b
 ): T[] {
   if (!currentUser) return []
 
+  // Get active role from localStorage
+  const activeRole = getActiveRole(currentUser)
+
   // Admin sees all
   if (currentUser.roli === "Admin") return records
 
-  // Head of Department sees department records
-  if (currentUser.roli === "Head of Department") {
+  // If active role is HOD, see all department records (read-only)
+  if (activeRole === "HOD" && currentUser.roli === "Head of Department") {
     return records.filter((record) => {
       if (record.department?.id && currentUser.kafedra_id) {
         return record.department.id === currentUser.kafedra_id
@@ -178,22 +217,40 @@ export function filterRecordsByRole<T extends { mualliflar?: number[]; created_b
     })
   }
 
-  // Teacher sees:
-  // 1. Their own items (created_by)
-  // 2. Items where they are co-authors
-  // 3. Department-visible items from same department (read-only unless co-author)
-  if (currentUser.roli === "Teacher") {
+  // If active role is TEACHER, see only own items (created by user or user is co-author)
+  if (activeRole === "TEACHER") {
     return records.filter((record) => {
-      // Own items
+      // Own items (user created this record)
       if (record.created_by === currentUser.id) return true
       
-      // Co-authored items
+      // Co-authored items (user is in the authors list - hammuallif)
       if (record.mualliflar?.includes(currentUser.id)) return true
       
-      // Department-visible items from same department
-      if (record.department_visible && record.department?.id && currentUser.kafedra_id) {
+      return false
+    })
+  }
+
+  // Head of Department sees all department records (when not in HOD mode)
+  if (currentUser.roli === "Head of Department" && activeRole !== "HOD") {
+    return records.filter((record) => {
+      // Show all records from the same department
+      if (record.department?.id && currentUser.kafedra_id) {
         return record.department.id === currentUser.kafedra_id
       }
+      return false
+    })
+  }
+
+  // Teacher sees only their own items:
+  // 1. Items they created (created_by)
+  // 2. Items where they are co-authors (hammuallif)
+  if (currentUser.roli === "Teacher") {
+    return records.filter((record) => {
+      // Own items (user created this record)
+      if (record.created_by === currentUser.id) return true
+      
+      // Co-authored items (user is in the authors list - hammuallif)
+      if (record.mualliflar?.includes(currentUser.id)) return true
       
       return false
     })

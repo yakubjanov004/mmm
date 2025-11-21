@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { BookOpen, GraduationCap, Award, FileCode, FolderOpen, BarChart3, Users, Loader2 } from "lucide-react"
 import { getCurrentUserSync } from "@/lib/auth"
 import { worksAPI, usersAPI, filesAPI, statsAPI } from "@/lib/api"
-import { 
+import {
   mapBackendMethodicalWorkToFrontend,
   mapBackendResearchWorkToFrontend,
   mapBackendCertificateToFrontend,
@@ -25,10 +25,12 @@ import {
 import Link from "next/link"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { toast } from "sonner"
+import { useTranslation } from "@/lib/i18n"
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"]
 
 export default function StatisticsPage() {
+  const { t } = useTranslation()
   const currentUser = getCurrentUserSync()
   const [yearFilter, setYearFilter] = useState<string>("all")
 
@@ -44,15 +46,15 @@ export default function StatisticsPage() {
                   <BarChart3 className="w-12 h-12 text-destructive" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">403: Kirish huquqi yo'q</CardTitle>
+              <CardTitle className="text-2xl">{t("errors.403")}</CardTitle>
               <CardDescription className="text-base mt-2">
-                Statistika sahifasiga faqat Admin va Kafedra mudiri kirishi mumkin.
+                {t("errors.onlyAdminAndHodStatistics")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" asChild>
-                  <Link href="/dashboard">Dashboardga qaytish</Link>
+                  <Link href="/dashboard">{t("errors.returnToDashboard")}</Link>
                 </Button>
               </div>
             </CardContent>
@@ -76,9 +78,9 @@ export default function StatisticsPage() {
   useEffect(() => {
     if (hasFetchedRef.current) return
     if (!currentUser) return
-    
+
     hasFetchedRef.current = true
-    
+
     const fetchData = async () => {
       setIsLoading(true)
       try {
@@ -96,11 +98,11 @@ export default function StatisticsPage() {
         setCertificates(((certsData as any).results || certsData || []).map(mapBackendCertificateToFrontend))
         setSoftwareCertificates(((softData as any).results || softData || []).map(mapBackendSoftwareCertificateToFrontend))
         setFiles((filesData as any).results || filesData || [])
-        
+
         // Map users data properly
-        const usersArray = Array.isArray(usersData) 
-          ? usersData 
-          : ((usersData as any)?.results || [])
+        const usersArray = Array.isArray(usersData)
+          ? usersData
+          : ((usersData as any)?.results || usersData || [])
         const mappedUsers = usersArray.map((u: any) => {
           const backendUserData = {
             id: u.id,
@@ -190,7 +192,7 @@ export default function StatisticsPage() {
     const adminCount = users.filter((u: any) => u.roli === "Admin").length
     const hodCount = users.filter((u: any) => u.roli === "Head of Department").length
     const teacherCount = users.filter((u: any) => u.roli === "Teacher").length
-    
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -198,23 +200,23 @@ export default function StatisticsPage() {
         </div>
       )
     }
-    
+
     return (
       <div className="space-y-6">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="/dashboard">Dashboard</Link>
+                <Link href="/dashboard">{t("dashboard.title")}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbItem>Statistika</BreadcrumbItem>
+            <BreadcrumbItem>{t("statistics.title")}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
         <div>
-          <h1 className="text-3xl font-bold">Statistika</h1>
-          <p className="text-muted-foreground">Umumiy tizim statistikasi</p>
+          <h1 className="text-3xl font-bold">{t("statistics.title")}</h1>
+          <p className="text-muted-foreground">{t("statistics.subtitle")}</p>
         </div>
 
         {/* User Statistics */}
@@ -223,12 +225,12 @@ export default function StatisticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Jami foydalanuvchilar
+                {t("statistics.totalUsers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{totalUsers}</p>
-              <p className="text-xs text-muted-foreground">Barcha ro'yxatdan o'tganlar</p>
+              <p className="text-xs text-muted-foreground">{t("statistics.allRegistered")}</p>
             </CardContent>
           </Card>
 
@@ -236,12 +238,12 @@ export default function StatisticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Faol foydalanuvchilar
+                {t("statistics.activeUsers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{activeUsers}</p>
-              <p className="text-xs text-muted-foreground">O'qituvchilar va mudirlar</p>
+              <p className="text-xs text-muted-foreground">{t("statistics.teachersAndHeads")}</p>
             </CardContent>
           </Card>
 
@@ -249,12 +251,12 @@ export default function StatisticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Kafedra mudirlari
+                {t("statistics.hod")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{hodCount}</p>
-              <p className="text-xs text-muted-foreground">Jami mudirlar</p>
+              <p className="text-xs text-muted-foreground">{t("statistics.totalHeads")}</p>
             </CardContent>
           </Card>
 
@@ -262,12 +264,12 @@ export default function StatisticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                O'qituvchilar
+                {t("statistics.teachers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{teacherCount}</p>
-              <p className="text-xs text-muted-foreground">Jami o'qituvchilar</p>
+              <p className="text-xs text-muted-foreground">{t("statistics.totalTeachers")}</p>
             </CardContent>
           </Card>
         </div>
@@ -275,17 +277,17 @@ export default function StatisticsPage() {
         {/* Role Distribution Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Foydalanuvchilar rol bo'yicha</CardTitle>
-            <CardDescription>Rollar taqsimoti</CardDescription>
+            <CardTitle>{t("statistics.usersByRole")}</CardTitle>
+            <CardDescription>{t("statistics.roleDistribution")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={[
-                    { name: "Admin", value: adminCount },
-                    { name: "Kafedra mudiri", value: hodCount },
-                    { name: "O'qituvchi", value: teacherCount },
+                    { name: t("roles.admin"), value: adminCount },
+                    { name: t("roles.hod"), value: hodCount },
+                    { name: t("roles.teacher"), value: teacherCount },
                   ]}
                   cx="50%"
                   cy="50%"
@@ -296,9 +298,9 @@ export default function StatisticsPage() {
                   dataKey="value"
                 >
                   {[
-                    { name: "Admin", value: adminCount },
-                    { name: "Kafedra mudiri", value: hodCount },
-                    { name: "O'qituvchi", value: teacherCount },
+                    { name: t("roles.admin"), value: adminCount },
+                    { name: t("roles.hod"), value: hodCount },
+                    { name: t("roles.teacher"), value: teacherCount },
                   ].map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -338,25 +340,25 @@ export default function StatisticsPage() {
               <Link href="/dashboard">Dashboard</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbItem>Statistics</BreadcrumbItem>
+          <BreadcrumbItem>{t("statistics.title")}</BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Statistika</h1>
+          <h1 className="text-3xl font-bold">{t("statistics.title")}</h1>
           <p className="text-muted-foreground">
             {(currentUser?.roli as string) === "Admin"
-              ? "Umumiy tizim statistikasi"
-              : "Kafedra faoliyati bo'yicha tahlil"}
+              ? t("statistics.subtitle")
+              : t("statistics.departmentStats")}
           </p>
         </div>
         <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Barcha yillar" />
+            <SelectValue placeholder={t("filters.allYears")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Barcha yillar</SelectItem>
+            <SelectItem value="all">{t("filters.allYears")}</SelectItem>
             {Array.from(
               new Set([
                 ...methodicalWorks.map((w) => w.yili),
@@ -380,12 +382,12 @@ export default function StatisticsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
-              Uslubiy ishlar
+              {t("statistics.methodical")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalStats.methodical}</p>
-            <p className="text-xs text-muted-foreground">Jami ishlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -393,12 +395,12 @@ export default function StatisticsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <GraduationCap className="w-4 h-4" />
-              Ilmiy ishlar
+              {t("statistics.research")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalStats.research}</p>
-            <p className="text-xs text-muted-foreground">Jami ishlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -406,12 +408,12 @@ export default function StatisticsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Award className="w-4 h-4" />
-              Sertifikatlar
+              {t("statistics.certificates")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalStats.certificates}</p>
-            <p className="text-xs text-muted-foreground">Jami sertifikatlar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -419,12 +421,12 @@ export default function StatisticsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileCode className="w-4 h-4" />
-              Dasturiy guvohnomalar
+              {t("dashboard.softwareCertificates")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalStats.software}</p>
-            <p className="text-xs text-muted-foreground">Jami guvohnomalar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
 
@@ -432,12 +434,12 @@ export default function StatisticsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FolderOpen className="w-4 h-4" />
-              Fayllar
+              {t("menu.files")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalStats.files}</p>
-            <p className="text-xs text-muted-foreground">Jami fayllar</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalRecords")}</p>
           </CardContent>
         </Card>
       </div>
@@ -447,8 +449,8 @@ export default function StatisticsPage() {
         {/* Year Trend */}
         <Card>
           <CardHeader>
-            <CardTitle>Yil bo'yicha tendentsiya</CardTitle>
-            <CardDescription>Yillarga ko'ra ishlar taqsimoti</CardDescription>
+            <CardTitle>{t("statistics.yearTrend")}</CardTitle>
+            <CardDescription>{t("statistics.yearTrendDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -469,8 +471,8 @@ export default function StatisticsPage() {
         {/* Language Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Til bo'yicha taqsimot</CardTitle>
-            <CardDescription>Ishlar til bo'yicha</CardDescription>
+            <CardTitle>{t("statistics.languageDistribution")}</CardTitle>
+            <CardDescription>{t("statistics.languageDistributionDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -500,8 +502,8 @@ export default function StatisticsPage() {
       {methodicalTypeData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Uslubiy ishlar turi bo'yicha</CardTitle>
-            <CardDescription>Uslubiy ishlar turlarining taqsimoti</CardDescription>
+            <CardTitle>{t("statistics.methodicalByType")}</CardTitle>
+            <CardDescription>{t("statistics.methodicalByTypeDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">

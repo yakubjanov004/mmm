@@ -26,6 +26,26 @@ export const POSITIONS = [
   "Stajer-o'qituvchi",
 ] as const
 
+// Profile Name (multi-language)
+export interface ProfileName {
+  language: "uz" | "uzc" | "ru" | "en"
+  first_name: string
+  last_name: string
+  father_name?: string
+}
+
+// Employment
+export interface Employment {
+  id: number
+  employment_type: "MAIN" | "INTERNAL" | "EXTERNAL"
+  rate: string // Decimal as string (e.g., "1.00", "0.75")
+  department?: { id: number; name: string } | null
+  position?: { id: number; name: string } | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 // User
 export interface User {
   id: number
@@ -38,6 +58,7 @@ export interface User {
   telefon_raqami: string // +998xxxxxxxxx
   roli: Role // Display role (English)
   roli_internal: RoleInternal // Internal storage
+  available_roles?: string[] // Available roles (e.g., ["HOD", "TEACHER"] for HOD)
   user_id: string
   username: string // For login
   password: string // Plaintext for demo
@@ -46,6 +67,16 @@ export interface User {
   scopus_link?: string
   google_scholar_link?: string
   research_id_link?: string
+  // Multi-language names
+  names?: ProfileName[] // All language variants
+  full_name?: string // Default/uz name
+  full_name_uzc?: string // Uzbek Cyrillic name
+  full_name_ru?: string // Russian name
+  full_name_en?: string // English name
+  // Employments
+  employments?: Employment[] // All employment records
+  // Avatar
+  avatar?: string // Avatar image URL
 }
 
 // Methodical Work
