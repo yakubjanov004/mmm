@@ -42,7 +42,6 @@ class Command(BaseCommand):
             help="Admin email (default: from ADMIN_EMAIL env or 'admin@example.com')",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
         skip_migrations = options["skip_migrations"]
         skip_sample_data = options["skip_sample_data"]
@@ -54,7 +53,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Starting database setup..."))
         self.stdout.write("=" * 60)
 
-        # Step 1: Run migrations
+        # Step 1: Run migrations (migrations handle their own transactions)
         if not skip_migrations:
             self.stdout.write("\n[1/5] Running migrations...")
             try:
@@ -72,15 +71,16 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"⚠ Static files warning: {str(e)}"))
 
-        # Step 3: Create admin user
+        # Step 3: Create admin user (use transaction for data operations)
         self.stdout.write("\n[3/5] Creating admin user...")
         try:
-            call_command(
-                "create_admin",
-                username=admin_username,
-                password=admin_password,
-                email=admin_email,
-            )
+            with transaction.atomic():
+                call_command(
+                    "create_admin",
+                    username=admin_username,
+                    password=admin_password,
+                    email=admin_email,
+                )
             self.stdout.write(
                 self.style.SUCCESS(
                     f"✓ Admin user created/updated: {admin_username}"
@@ -94,7 +94,8 @@ class Command(BaseCommand):
         if not skip_sample_data:
             self.stdout.write("\n[4/5] Creating sample users...")
             try:
-                call_command("create_users", skip_existing=True)
+                with transaction.atomic():
+                    call_command("create_users", skip_existing=True)
                 self.stdout.write(self.style.SUCCESS("✓ Sample users created"))
             except Exception as e:
                 self.stdout.write(
@@ -104,7 +105,8 @@ class Command(BaseCommand):
             # Step 5: Create sample works (optional)
             self.stdout.write("\n[5/5] Creating sample works...")
             try:
-                call_command("create_works")
+                with transaction.atomic():
+                    call_command("create_works")
                 self.stdout.write(self.style.SUCCESS("✓ Sample works created"))
             except Exception as e:
                 self.stdout.write(
