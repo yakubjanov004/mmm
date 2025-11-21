@@ -1,6 +1,8 @@
 // API Client for backend communication
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+// Default to production API URL if not set
+// In development, set NEXT_PUBLIC_API_URL=http://localhost:8000/api
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://web-production-a93d.up.railway.app/api"
 
 // Get current language from localStorage
 function getCurrentLanguage(): string {

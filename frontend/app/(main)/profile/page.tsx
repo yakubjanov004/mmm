@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useEffect, useRef } from "react"
+import { API_BASE_URL } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -210,7 +211,7 @@ export default function ProfilePage() {
         formDataUpload.append("avatar", avatarFile)
         
         const token = localStorage.getItem("access_token")
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/auth/me/avatar/`, {
+        const response = await fetch(`${API_BASE_URL}/auth/me/avatar/`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -266,7 +267,7 @@ export default function ProfilePage() {
       formDataUpload.append("avatar", avatarFile)
       
       const token = localStorage.getItem("access_token")
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/auth/me/avatar/`, {
+      const response = await fetch(`${API_BASE_URL}/auth/me/avatar/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

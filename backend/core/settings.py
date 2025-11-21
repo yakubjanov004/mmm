@@ -370,16 +370,26 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
-# Add Railway domain to CSRF trusted origins
-RAILWAY_DOMAIN_CSRF = "https://web-production-a93d.up.railway.app"
-if RAILWAY_DOMAIN_CSRF not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append(RAILWAY_DOMAIN_CSRF)
+# Add Railway domains to CSRF trusted origins
+RAILWAY_BACKEND_DOMAIN = "https://web-production-a93d.up.railway.app"
+RAILWAY_FRONTEND_DOMAIN = "https://frontend-production-3250.up.railway.app"
+
+if RAILWAY_BACKEND_DOMAIN not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(RAILWAY_BACKEND_DOMAIN)
+if RAILWAY_FRONTEND_DOMAIN not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(RAILWAY_FRONTEND_DOMAIN)
+
+# Add frontend domain to CORS allowed origins if not already allowing all
+if IS_RAILWAY and CORS_ALLOWED_ORIGINS and RAILWAY_FRONTEND_DOMAIN not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(RAILWAY_FRONTEND_DOMAIN)
 
 # Add default trusted origins in development
 if DEBUG and not CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ]
 
 
