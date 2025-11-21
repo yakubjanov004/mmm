@@ -31,6 +31,9 @@ ALLOWED_HOSTS: List[str] = [
 ]
 if DEBUG and not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+# In production, if no ALLOWED_HOSTS is set, allow all (Railway will handle routing)
+if not DEBUG and not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*"]
 
 
 # Application definition

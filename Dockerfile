@@ -21,6 +21,10 @@ COPY backend/ .
 # Collect static files
 RUN python manage.py collectstatic --noinput || true
 
-# Setup database and start server
-CMD python manage.py setup_database --skip-sample-data && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
+# Copy and make startup script executable
+COPY backend/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Start server using the startup script
+CMD ["bash", "/app/start.sh"]
 
