@@ -29,11 +29,32 @@ DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS: List[str] = [
     host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if host.strip()
 ]
-if DEBUG and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-# In production, if no ALLOWED_HOSTS is set, allow all (Railway will handle routing)
-if not DEBUG and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["*"]
+
+# Add specific Railway domain
+if "web-production-a93d.up.railway.app" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("web-production-a93d.up.railway.app")
+
+# Detect if we're running on Railway (Railway sets PORT env var)
+IS_RAILWAY = bool(os.getenv("PORT"))
+
+# If no ALLOWED_HOSTS was set from env, configure defaults
+if len(ALLOWED_HOSTS) == 1 and ALLOWED_HOSTS[0] == "web-production-a93d.up.railway.app":
+    if DEBUG:
+        ALLOWED_HOSTS.extend(["localhost", "127.0.0.1"])
+        # If on Railway, also allow Railway domains even in DEBUG mode
+        if IS_RAILWAY:
+            ALLOWED_HOSTS.append(".up.railway.app")
+    else:
+        # In production, allow all hosts (Railway will handle routing)
+        # This is safe because Railway's reverse proxy validates hosts
+        ALLOWED_HOSTS.append("*")
+elif IS_RAILWAY:
+    # If ALLOWED_HOSTS is explicitly set, ensure Railway domains are included if on Railway
+    railway_domain = ".up.railway.app"
+    if railway_domain not in ALLOWED_HOSTS and "*" not in ALLOWED_HOSTS:
+        # Check if any Railway domain is already included
+        if not any(".up.railway.app" in host for host in ALLOWED_HOSTS):
+            ALLOWED_HOSTS.append(railway_domain)
 
 
 # Application definition
