@@ -41,6 +41,11 @@ class Command(BaseCommand):
             default=os.getenv("ADMIN_EMAIL", "admin@example.com"),
             help="Admin email (default: from ADMIN_EMAIL env or 'admin@example.com')",
         )
+        parser.add_argument(
+            "--force-update-admin",
+            action="store_true",
+            help="Force update existing admin user (useful for fixing is_staff/is_superuser flags)",
+        )
 
     def handle(self, *args, **options):
         skip_migrations = options["skip_migrations"]
@@ -48,6 +53,7 @@ class Command(BaseCommand):
         admin_username = options["admin_username"]
         admin_password = options["admin_password"]
         admin_email = options["admin_email"]
+        force_update_admin = options["force_update_admin"]
 
         self.stdout.write(self.style.SUCCESS("=" * 60))
         self.stdout.write(self.style.SUCCESS("Starting database setup..."))
@@ -75,12 +81,14 @@ class Command(BaseCommand):
         self.stdout.write("\n[3/5] Creating admin user...")
         try:
             with transaction.atomic():
-                call_command(
-                    "create_admin",
-                    username=admin_username,
-                    password=admin_password,
-                    email=admin_email,
-                )
+                create_admin_kwargs = {
+                    "username": admin_username,
+                    "password": admin_password,
+                    "email": admin_email,
+                }
+                if force_update_admin:
+                    create_admin_kwargs["force"] = True
+                call_command("create_admin", **create_admin_kwargs)
             self.stdout.write(
                 self.style.SUCCESS(
                     f"✓ Admin user created/updated: {admin_username}"

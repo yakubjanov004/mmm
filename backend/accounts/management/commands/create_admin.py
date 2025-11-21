@@ -60,18 +60,21 @@ class Command(BaseCommand):
 
         # Check if user with this username already exists
         if User.objects.filter(username=username).exists():
-            if not force:
-                user = User.objects.get(username=username)
+            user = User.objects.get(username=username)
+            # Agar force yoki user'da is_staff/is_superuser yo'q bo'lsa, yangilash
+            needs_update = force or not user.is_staff or not user.is_superuser
+            
+            if not force and not needs_update:
                 # Check if already admin
                 if user.profile.role == Profile.Roles.ADMIN:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Admin user '{username}' already exists! Use --force to update."
+                            f"Admin user '{username}' already exists with correct permissions! Use --force to update."
                         )
                     )
                     return
+            
             # Update existing user to be admin
-            user = User.objects.get(username=username)
             profile = user.profile
             profile.role = Profile.Roles.ADMIN
             if not profile.department:
@@ -85,6 +88,9 @@ class Command(BaseCommand):
             user.email = email
             user.first_name = first_name
             user.last_name = last_name
+            # Django admin uchun kerakli flaglar
+            user.is_staff = True
+            user.is_superuser = True
             user.save()
             self.stdout.write(
                 self.style.SUCCESS(
@@ -116,6 +122,11 @@ class Command(BaseCommand):
             first_name=first_name,
             last_name=last_name,
         )
+
+        # Django admin uchun kerakli flaglar
+        user.is_staff = True
+        user.is_superuser = True
+        user.save()
 
         # Update profile to be admin
         profile = user.profile

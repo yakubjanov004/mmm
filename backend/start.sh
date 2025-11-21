@@ -7,7 +7,7 @@ echo "============================================================"
 
 # Run database setup
 echo "Running database setup..."
-python manage.py setup_database --skip-sample-data || {
+python manage.py setup_database --skip-sample-data --force-update-admin || {
     echo "ERROR: Database setup failed!"
     exit 1
 }
