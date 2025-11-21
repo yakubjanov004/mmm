@@ -19,6 +19,5 @@ COPY backend/ .
 RUN python manage.py collectstatic --noinput || true
 
 # Setup database and start server
-CMD python manage.py setup_database --skip-sample-data && \
-    gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
+CMD python manage.py setup_database --skip-sample-data && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 
