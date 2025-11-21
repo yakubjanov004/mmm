@@ -21,8 +21,7 @@ COPY backend/ .
 # Collect static files
 RUN python manage.py collectstatic --noinput || true
 
-# Copy and make startup script executable
-COPY backend/start.sh /app/start.sh
+# Make startup script executable (start.sh already copied with backend/)
 RUN chmod +x /app/start.sh
 
 # Start server using the startup script
