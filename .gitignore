@@ -130,9 +130,6 @@ next-env.d.ts
 .cache
 .parcel-cache
 
-# Vercel
-.vercel
-
 # Python virtual environments
 venv/
 env/

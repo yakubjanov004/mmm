@@ -28,8 +28,6 @@ export function FileUploadArea() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const files = e.dataTransfer.files
-    console.log("Files dropped:", files)
   }
 
   return (
@@ -79,7 +77,6 @@ export function FileUploadArea() {
         />
       </div>
 
-      {/* File upload area */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

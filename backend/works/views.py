@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets

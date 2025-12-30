@@ -4,8 +4,9 @@ import { useEffect, useState } from "react"
 
 export type Language = "uz" | "uzc" | "ru" | "en"
 
-const DEFAULT_LANGUAGE: Language = "uz"
-const LANGUAGE_STORAGE_KEY = "app_language"
+const SUPPORTED_LANGUAGES: Language[] = ["uz", "uzc", "ru", "en"]
+const DEFAULT_LANGUAGE: Language = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE as Language
+const LANGUAGE_STORAGE_KEY = process.env.NEXT_PUBLIC_LANGUAGE_STORAGE_KEY!
 
 // Translation data cache
 const translationCache: Record<Language, any> = {} as Record<Language, any>
@@ -41,7 +42,7 @@ export function getCurrentLanguage(): Language {
   }
 
   const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY)
-  if (stored && ["uz", "uzc", "ru", "en"].includes(stored)) {
+  if (stored && SUPPORTED_LANGUAGES.includes(stored as Language)) {
     return stored as Language
   }
   return DEFAULT_LANGUAGE

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Callable, Dict
 
 from django.db.models import Count, QuerySet, Q

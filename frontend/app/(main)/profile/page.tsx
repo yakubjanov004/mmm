@@ -139,8 +139,7 @@ export default function ProfilePage() {
         if (userData) {
           // Debug: log avatar URL
           if (userData.avatar) {
-            console.log("Avatar URL from API:", userData.avatar)
-          }
+                      }
           setCurrentUser(userData)
         }
         setDepartments(Array.isArray(deptsData) ? deptsData : [])

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from django.db import models
 
 from accounts.models import Department, Profile

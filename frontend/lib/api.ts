@@ -1,26 +1,11 @@
 // API Client for backend communication
 
-// Default to production API URL if not set
-// In development, set NEXT_PUBLIC_API_URL=http://localhost:8000/api
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://web-production-a93d.up.railway.app/api"
+// Environment variables
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!
+const ACCESS_TOKEN_KEY = process.env.NEXT_PUBLIC_AUTH_COOKIE_NAME!
+const REFRESH_TOKEN_KEY = process.env.NEXT_PUBLIC_REFRESH_COOKIE_NAME!
 
-// Get current language from localStorage
-function getCurrentLanguage(): string {
-  if (typeof window === "undefined") return "uz"
-  return localStorage.getItem("app_language") || "uz"
-}
-
-// Add language parameter to endpoint if needed
-function addLangParam(endpoint: string, includeLang: boolean = false): string {
-  if (!includeLang) return endpoint
-  const lang = getCurrentLanguage()
-  const separator = endpoint.includes("?") ? "&" : "?"
-  return `${endpoint}${separator}lang=${lang}`
-}
-
-// Storage keys
-const ACCESS_TOKEN_KEY = "access_token"
-const REFRESH_TOKEN_KEY = "refresh_token"
+export { API_BASE_URL }
 
 // Get stored access token
 export function getAccessToken(): string | null {
@@ -48,11 +33,20 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+// Parse response
+async function parseResponse<T>(response: Response): Promise<T> {
+  if (response.status === 204) return null as T
+  const text = await response.text()
+  if (!text) return null as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null as T
+  }
+}
+
 // API request wrapper
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -63,116 +57,29 @@ async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  let response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers })
 
-  // Handle token refresh on 401
+  // Handle 401 - try refresh token
   if (response.status === 401 && token) {
     const refreshed = await refreshAccessToken()
     if (refreshed) {
-      // Retry request with new token
-      const newToken = getAccessToken()
-      if (newToken) {
-        const retryHeaders: Record<string, string> = {
-          ...headers,
-          "Authorization": `Bearer ${newToken}`
-        }
-        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
-          ...options,
-          headers: retryHeaders,
-        })
-        if (!retryResponse.ok) {
-          // If retry also fails, clear tokens
-          if (retryResponse.status === 401) {
-            clearTokens()
-            // Redirect to login if we're in browser
-            if (typeof window !== "undefined") {
-              window.location.href = "/"
-            }
-            throw new Error("Authentication failed")
-          }
-          throw new Error(`API request failed: ${retryResponse.statusText}`)
-        }
-        
-        // Handle empty responses for retry
-        const retryContentType = retryResponse.headers.get("content-type")
-        const retryContentLength = retryResponse.headers.get("content-length")
-        if (
-          retryResponse.status === 204 || 
-          retryContentLength === "0" ||
-          (!retryContentType || !retryContentType.includes("application/json"))
-        ) {
-          return null as T
-        }
-        
-        const retryText = await retryResponse.text()
-        if (!retryText || retryText.trim() === "") {
-          return null as T
-        }
-        
-        try {
-          return JSON.parse(retryText) as T
-        } catch (e) {
-          if (options.method === "DELETE") {
-            return null as T
-          }
-          throw new Error("Invalid JSON response")
-        }
-      }
+      headers["Authorization"] = `Bearer ${getAccessToken()}`
+      response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers })
     }
-    // If refresh failed, clear tokens and redirect
-    clearTokens()
-    if (typeof window !== "undefined") {
-      window.location.href = "/"
+    
+    if (response.status === 401) {
+      clearTokens()
+      if (typeof window !== "undefined") window.location.href = "/"
+      throw new Error("Authentication failed")
     }
-    throw new Error("Authentication failed")
   }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }))
-    const errorMessage = error.detail || error.message || `API request failed: ${response.statusText}`
-    
-    // If token is invalid, clear tokens and redirect
-    if (errorMessage.includes("token") && errorMessage.includes("not valid")) {
-      clearTokens()
-      if (typeof window !== "undefined") {
-        window.location.href = "/"
-      }
-    }
-    
-    throw new Error(errorMessage)
+    throw new Error(error.detail || error.message || response.statusText)
   }
 
-  // Handle empty responses (e.g., DELETE requests with 204 No Content)
-  const contentType = response.headers.get("content-type")
-  const contentLength = response.headers.get("content-length")
-  
-  // If response is empty or has no content, return null/empty object
-  if (
-    response.status === 204 || 
-    contentLength === "0" ||
-    (!contentType || !contentType.includes("application/json"))
-  ) {
-    return null as T
-  }
-
-  // Try to parse JSON, but handle empty responses gracefully
-  const text = await response.text()
-  if (!text || text.trim() === "") {
-    return null as T
-  }
-
-  try {
-    return JSON.parse(text) as T
-  } catch (e) {
-    // If JSON parsing fails, return null for DELETE requests
-    if (options.method === "DELETE") {
-      return null as T
-    }
-    throw new Error("Invalid JSON response")
-  }
+  return parseResponse<T>(response)
 }
 
 // Refresh access token
@@ -225,7 +132,7 @@ export const authAPI = {
   },
 
   getCurrentUser: async () => {
-    return apiRequest(addLangParam("/auth/me/", true))
+    return apiRequest("/auth/me/")
   },
 
   updateProfile: async (data: {

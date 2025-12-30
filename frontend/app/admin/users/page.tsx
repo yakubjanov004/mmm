@@ -67,8 +67,7 @@ export default function Users() {
 
   const handleCreateUser = () => {
     if (formData.name && formData.email && formData.role) {
-      console.log("[v0] Creating user:", formData)
-      setFormData({ name: "", email: "", role: "" })
+            setFormData({ name: "", email: "", role: "" })
       setIsOpen(false)
     }
   }

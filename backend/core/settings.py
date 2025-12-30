@@ -1,78 +1,17 @@
-from __future__ import annotations
-
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, List
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_PATH = BASE_DIR / ".env"
-load_dotenv(ENV_PATH)
+load_dotenv(BASE_DIR / ".env")
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-default-secret-key-change-me",
-)
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
-
-ALLOWED_HOSTS: List[str] = [
-    host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if host.strip()
-]
-
-# Add specific Railway domain
-if "web-production-a93d.up.railway.app" not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append("web-production-a93d.up.railway.app")
-
-# Detect if we're running on Railway (Railway sets PORT env var)
-IS_RAILWAY = bool(os.getenv("PORT"))
-
-# If no ALLOWED_HOSTS was set from env, configure defaults
-if len(ALLOWED_HOSTS) == 1 and ALLOWED_HOSTS[0] == "web-production-a93d.up.railway.app":
-    if DEBUG:
-        ALLOWED_HOSTS.extend(["localhost", "127.0.0.1"])
-        # If on Railway, also allow Railway domains even in DEBUG mode
-        if IS_RAILWAY:
-            ALLOWED_HOSTS.append(".up.railway.app")
-    else:
-        # In production, allow all hosts (Railway will handle routing)
-        # This is safe because Railway's reverse proxy validates hosts
-        ALLOWED_HOSTS.append("*")
-elif IS_RAILWAY:
-    # If ALLOWED_HOSTS is explicitly set, ensure Railway domains are included if on Railway
-    railway_domain = ".up.railway.app"
-    if railway_domain not in ALLOWED_HOSTS and "*" not in ALLOWED_HOSTS:
-        # Check if any Railway domain is already included
-        if not any(".up.railway.app" in host for host in ALLOWED_HOSTS):
-            ALLOWED_HOSTS.append(railway_domain)
-
-
-# Application definition
-
-THIRD_PARTY_APPS = [
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "corsheaders",
-    "django_filters",
-    "drf_spectacular",
-]
-
-LOCAL_APPS = [
-    "accounts",
-    "works.apps.WorksConfig",
-    "files.apps.FilesConfig",
-    "stats",
-]
+# Core settings
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -81,8 +20,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    *THIRD_PARTY_APPS,
-    *LOCAL_APPS,
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "django_filters",
+    "drf_spectacular",
+    "accounts",
+    "works.apps.WorksConfig",
+    "files.apps.FilesConfig",
+    "stats",
 ]
 
 MIDDLEWARE = [
@@ -119,52 +65,23 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 
 # Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
-
-def _sqlite_config() -> Dict[str, object]:
-    return {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-
-
-def _postgres_from_url(url: str) -> Dict[str, object]:
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    return {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": parsed.path[1:] if parsed.path else "",
-        "USER": parsed.username or "",
-        "PASSWORD": parsed.password or "",
-        "HOST": parsed.hostname or "",
-        "PORT": parsed.port or "",
-    }
-
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    DATABASES = {
-        "default": _postgres_from_url(DATABASE_URL),
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.sqlite3"),
-            "NAME": os.getenv("DB_NAME", BASE_DIR / "db.sqlite3"),
-            "USER": os.getenv("DB_USER", ""),
-            "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST", ""),
-            "PORT": os.getenv("DB_PORT", ""),
+def get_database_config():
+    db_url = os.getenv("DATABASE_URL", "sqlite:///db.sqlite3")
+    if db_url.startswith("postgres"):
+        parsed = urlparse(db_url)
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": parsed.path[1:],
+            "USER": parsed.username or "",
+            "PASSWORD": parsed.password or "",
+            "HOST": parsed.hostname or "",
+            "PORT": parsed.port or "5432",
         }
-    }
-    if DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
-        DATABASES["default"] = _sqlite_config()
+    return {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}
+
+DATABASES = {"default": get_database_config()}
 
 
-# Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -182,46 +99,33 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+
 # Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
 LANGUAGE_CODE = "uz"
-
 TIME_ZONE = "Asia/Tashkent"
-
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
-
+# Static & Media
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Django REST Framework configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",  # Admin sessiyasi
-        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": int(os.getenv("DJANGO_PAGE_SIZE", "20")),
+    "PAGE_SIZE": 20,
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
@@ -233,12 +137,8 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
-    "ACCESS_TOKEN_LIFETIME": timedelta(
-        minutes=int(os.getenv("JWT_ACCESS_LIFETIME_MINUTES", "15"))
-    ),
-    "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=int(os.getenv("JWT_REFRESH_LIFETIME_DAYS", "1"))
-    ),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("JWT_ACCESS_LIFETIME_MINUTES", "15"))),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_LIFETIME_DAYS", "1"))),
 }
 
 
@@ -277,20 +177,20 @@ SPECTACULAR_SETTINGS = {
     """,
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],  # Swagger UI'ni faqat adminlarga ko'rsatish
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SERVE_AUTHENTICATION": None,
     "COMPONENT_SPLIT_REQUEST": True,
     "COMPONENT_NO_READ_ONLY_REQUIRED": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "SECURITY": [
-        {"cookieAuth": []},  # Session/Cookie
-        {"BearerAuth": []},  # JWT
+        {"cookieAuth": []},  
+        {"BearerAuth": []},  
     ],
     "SECURITY_SCHEMES": {
         "cookieAuth": {
             "type": "apiKey",
             "in": "cookie",
-            "name": "sessionid",  # Django sessiya cookie nomi
+            "name": "sessionid",  
         },
         "BearerAuth": {
             "type": "http",
@@ -308,7 +208,7 @@ SPECTACULAR_SETTINGS = {
         "filter": True,
         "showExtensions": True,
         "showCommonExtensions": True,
-        "persistAuthorization": True,  # token/sessiya saqlanib turadi
+        "persistAuthorization": True,  
     },
     "TAGS": [
         {"name": "Authentication", "description": "User authentication endpoints"},
@@ -342,90 +242,13 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-
-# If on Railway and no CORS origins set, allow all origins (Railway handles security)
-if IS_RAILWAY and not CORS_ALLOWED_ORIGINS:
-    CORS_ALLOW_ALL_ORIGINS = True
-else:
-    # Add default frontend origins in development
-    if DEBUG and not CORS_ALLOWED_ORIGINS:
-        CORS_ALLOWED_ORIGINS = [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-        ]
-    CORS_ALLOW_ALL_ORIGINS = False
-
+# CORS
+CORS_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-
-# Add Railway domains to CSRF trusted origins
-RAILWAY_BACKEND_DOMAIN = "https://web-production-a93d.up.railway.app"
-RAILWAY_FRONTEND_DOMAIN = "https://frontend-production-3250.up.railway.app"
-
-if RAILWAY_BACKEND_DOMAIN not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append(RAILWAY_BACKEND_DOMAIN)
-if RAILWAY_FRONTEND_DOMAIN not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append(RAILWAY_FRONTEND_DOMAIN)
-
-# Add frontend domain to CORS allowed origins if not already allowing all
-if IS_RAILWAY and CORS_ALLOWED_ORIGINS and RAILWAY_FRONTEND_DOMAIN not in CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS.append(RAILWAY_FRONTEND_DOMAIN)
-
-# Add default trusted origins in development
-if DEBUG and not CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS = [
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ]
+# CSRF
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "[{levelname}] {asctime} {name}: {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "[{levelname}] {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
-    "loggers": {
-        "django.request": {
-            "handlers": ["console"],
-            "level": "WARNING",
-            "propagate": True,
-        },
-        "": {
-            "handlers": ["console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
-        },
-    },
-}
-
-
-# Health check toggle (optional)
-ENABLE_HEALTHCHECK = os.getenv("ENABLE_HEALTHCHECK", "true").lower() == "true"
-FILES_ADMIN_CAN_VIEW = os.getenv("FILES_ADMIN_CAN_VIEW", "false").lower() == "true"
+# Auth
+AUTH_USER_MODEL = "accounts.User"

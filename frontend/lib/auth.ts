@@ -5,7 +5,7 @@ import { authAPI, getAccessToken, clearTokens } from "./api"
 import { mapBackendUserToFrontend } from "./api-mappers"
 import { getActiveRole } from "@/components/role-switcher"
 
-// Session storage keys
+// Storage key
 const USER_DATA_KEY = "user_data"
 
 // Get current user from session or API

@@ -90,8 +90,7 @@ export default function UsersPage() {
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        console.log("Fetching users data...")
-        const [usersData, deptsData, posData] = await Promise.all([
+                const [usersData, deptsData, posData] = await Promise.all([
           usersAPI.list().catch((err) => {
             console.error("Users API error:", err)
             // Don't show toast for authentication errors (will redirect)
@@ -114,24 +113,18 @@ export default function UsersPage() {
           }),
         ])
 
-        console.log("Users data received:", usersData)
-        console.log("Users data type:", typeof usersData)
-        console.log("Is array?", Array.isArray(usersData))
-        console.log("Positions data received:", posData)
-        console.log("Positions data type:", typeof posData)
-        console.log("Is positions array?", Array.isArray(posData))
-        console.log("Positions length:", Array.isArray(posData) ? posData.length : "N/A")
+                        )
+                        )
+         ? posData.length : "N/A")
 
         // Backend returns paginated response: { count, next, previous, results: [...] }
         // Or direct array (for backward compatibility)
         const usersArray = Array.isArray(usersData)
           ? usersData
           : ((usersData as any)?.results || usersData || [])
-        console.log("Processing", usersArray.length, "users")
-
+        
         const usersList = usersArray.map((u: any, index: number) => {
-          console.log(`Processing user ${index}:`, u)
-          try {
+                    try {
             // Backend returns: { id, username, first_name, last_name, email, profile: { role, department, position, ... } }
             // We need to flatten it for mapBackendUserToFrontend
             const backendUserData = {
@@ -160,35 +153,25 @@ export default function UsersPage() {
               // Employments
               employments: u.profile?.employments || [],
             }
-            console.log(`Backend user data for ${index}:`, backendUserData)
-            console.log(`Department for ${index}:`, backendUserData.department)
-            const mapped = mapBackendUserToFrontend(backendUserData)
-            console.log(`Mapped user ${index}:`, mapped)
-            console.log(`Mapped department for ${index}:`, mapped.department)
-            return mapped
+                                    const mapped = mapBackendUserToFrontend(backendUserData)
+                                    return mapped
           } catch (err) {
             console.error(`Error mapping user ${index}:`, err, u)
             return null
           }
         }).filter((u: any) => u !== null) as User[]
 
-        console.log("Final mapped users list:", usersList)
-        console.log("Final users count:", usersList.length)
-        setUsers(usersList)
+                        setUsers(usersList)
         // Handle departments - check if it's paginated or direct array
         const departmentsArray = Array.isArray(deptsData)
           ? deptsData
           : ((deptsData as any)?.results || [])
-        console.log("Departments data:", departmentsArray)
-        console.log("Departments count:", departmentsArray.length)
-        setDepartments(departmentsArray)
+                        setDepartments(departmentsArray)
 
         const positionsArray = Array.isArray(posData)
           ? posData
           : ((posData as any)?.results || [])
-        console.log("Setting positions:", positionsArray)
-        console.log("Positions count:", positionsArray.length)
-
+                
         // Ensure positions have the correct structure
         const formattedPositions = positionsArray.map((pos: any) => {
           if (typeof pos === 'string') {
@@ -264,10 +247,7 @@ export default function UsersPage() {
       return
     }
 
-    console.log("Editing user:", user)
-    console.log("User kafedra_id:", user.kafedra_id)
-    console.log("User department:", user.department)
-    setEditingUser(user)
+                setEditingUser(user)
     setFormData({
       ...user,
       // Ensure kafedra_id is set correctly
@@ -311,12 +291,7 @@ export default function UsersPage() {
         backendRole = "TEACHER"
       }
 
-      console.log("Updating user role:", {
-        frontendRole: formData.roli,
-        backendRole: backendRole,
-        username: formData.username
-      })
-
+      
       const userData: any = {
         username: formData.username,
         first_name: formData.ism,
@@ -327,8 +302,7 @@ export default function UsersPage() {
         position: (() => {
           // If Admin or Head of Department, position should be null
           if (backendRole === "ADMIN" || backendRole === "HOD") {
-            console.log("Admin or HOD role selected, setting position to null")
-            return null
+                        return null
           }
           // Only set position for Teacher role
           if (!formData.lavozimi) {
@@ -341,12 +315,11 @@ export default function UsersPage() {
             return pName === formName
           })
           if (foundPosition) {
-            console.log("Found position:", foundPosition.name, "ID:", foundPosition.id, "for:", formData.lavozimi)
-            return foundPosition.id
+                        return foundPosition.id
           }
           // If not found, log warning but don't fail - let backend handle it
           console.warn("Position not found in API positions:", formData.lavozimi)
-          console.log("Available positions from API:", positions.map((p: any) => p.name))
+           => p.name))
           // Return null to let backend handle missing position
           return null
         })(),
@@ -837,8 +810,7 @@ export default function UsersPage() {
               <Select
                 value={formData.kafedra_id ? String(formData.kafedra_id) : ""}
                 onValueChange={(value) => {
-                  console.log("Department selected:", value)
-                  setFormData({ ...formData, kafedra_id: Number(value) })
+                                    setFormData({ ...formData, kafedra_id: Number(value) })
                 }}
               >
                 <SelectTrigger>

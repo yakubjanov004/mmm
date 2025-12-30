@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from accounts.models import Profile

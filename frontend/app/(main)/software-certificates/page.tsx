@@ -135,12 +135,9 @@ export default function SoftwareCertificatesPage() {
         ])
 
         const certsList = ((certsData as any)?.results || certsData || []).map((cert: any) => {
-          console.log("Software Certificate data:", cert)
-          console.log("Software Certificate authors:", cert.authors)
-          return mapBackendSoftwareCertificateToFrontend(cert)
+                              return mapBackendSoftwareCertificateToFrontend(cert)
         })
-        console.log("Mapped software certificates:", certsList)
-        setCertificates(certsList)
+                setCertificates(certsList)
         
         // Map users data using mapBackendUserToFrontend to preserve all language variants
         // Filter out admin and djangoadmin users

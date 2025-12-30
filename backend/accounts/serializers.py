@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -47,7 +45,7 @@ class EmploymentSerializer(serializers.ModelSerializer):
 
 class ProfileShortSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
-    id = serializers.IntegerField(source="user.id")  # Return User ID instead of Profile ID
+    id = serializers.IntegerField(source="user.id")  
 
     class Meta:
         model = Profile
